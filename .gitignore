@@ -1,0 +1,32 @@
+# General
+yarn-error.log
+node_modules
+.DS_STORE
+
+# Compiler files
+cache/
+out/
+
+# Foundry files
+cache
+out
+out-via-ir
+broadcast/**/run-*.json
+
+# Coverage Reports
+coverage-report
+lcov.info
+
+# Local test files
+deployments/anvil/
+
+# Ignores development broadcast logs
+!/broadcast
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Docs
+docs/
+
+# Dotenv file
+.env
