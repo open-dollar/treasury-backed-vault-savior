@@ -1,6 +1,8 @@
 @openzeppelin/=node_modules/@openzeppelin/contracts/
+@opendollar/contracts/=node_modules/@opendollar/contracts/src/contracts/
+@opendollar/interfaces/=node_modules/@opendollar/contracts/src/interfaces/
 
 @script/=script/
 @contracts/=src/contracts/
-@interfaces/=src/interfaces/
 @test/=test/
+@libraries/=src/libraries/
