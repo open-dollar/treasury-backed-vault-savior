@@ -111,7 +111,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     address _liquidator,
     bytes32 _cType,
     address _safe
-  ) external returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
+  ) external onlyRole(PROTOCOL) returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
     uint256 vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (!_enabledVaults[vaultId]) revert VaultNotAllowed(vaultId);
 
