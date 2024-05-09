@@ -3,6 +3,7 @@
 
 @opendollar/contracts/=node_modules/@opendollar/contracts/src/contracts/
 @opendollar/interfaces/=node_modules/@opendollar/contracts/src/interfaces/
+@opendollar/libraries/=node_modules/@opendollar/contracts/src/libraries/
 
 @script/=script/
 @contracts/=src/contracts/

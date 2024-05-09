@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
+import {AccessControl} from '@openzeppelin/access/AccessControl.sol';
+import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {SAFEEngine, ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {LiquidationEngine, ILiquidationEngine} from '@opendollar/contracts/LiquidationEngine.sol';
 import {CollateralAuctionHouse, ICollateralAuctionHouse} from '@opendollar/contracts/CollateralAuctionHouse.sol';
+import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
+import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
 import {ISAFESaviour} from '../interfaces/ISAFESaviour.sol';
-import {AccessControl} from '@openzeppelin/access/AccessControl.sol';
-import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
+import {Math} from '@opendollar/libraries/Math.sol';
 
 /**
  * @notice Steps to save a safe using ODSaviour:
@@ -34,11 +37,14 @@ struct SaviourInit {
   address saviourTreasury;
   address protocolGovernor;
   address vault721;
+  address oracleRelayer;
   bytes32[] cTypes;
   address[] saviourTokens;
 }
 
 contract ODSaviour is AccessControl, ISAFESaviour {
+  using Math for uint256;
+
   //solhint-disable-next-line modifier-name-mixedcase
   bytes32 public constant SAVIOUR_TREASURY = keccak256(abi.encode('SAVIOUR_TREASURY'));
   bytes32 public constant PROTOCOL = keccak256(abi.encode('PROTOCOL'));
@@ -48,6 +54,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   address public liquidationEngine;
 
   IVault721 public vault721;
+  IOracleRelayer public oracleRelayer;
   IODSafeManager public safeManager;
   ISAFEEngine public safeEngine;
 
@@ -61,6 +68,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     saviourTreasury = _init.saviourTreasury;
     protocolGovernor = _init.protocolGovernor;
     vault721 = IVault721(_init.vault721);
+    oracleRelayer = IOracleRelayer(_init.oracleRelayer);
     safeManager = IODSafeManager(vault721.safeManager());
     liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine(); // todo update @opendollar package to include `liquidationEngine` - PR #693
     safeEngine = ISAFEEngine(safeManager.safeEngine());
@@ -106,6 +114,20 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   ) external returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
     uint256 vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (!_enabledVaults[vaultId]) revert VaultNotAllowed(vaultId);
+
+    ISAFEEngine.SAFE memory SafeEngineData = safeEngine.safes(_cType, _safe);
+    uint256 currCollateral = SafeEngineData.lockedCollateral;
+    uint256 currDebt = SafeEngineData.generatedDebt;
+
+    ISAFEEngine.SAFEEngineCollateralData memory cTypeData = safeEngine.cData(_cType);
+    IOracleRelayer.OracleRelayerCollateralParams memory oracleParams = oracleRelayer.cParams(_cType);
+    IDelayedOracle oracle = oracleParams.oracle;
+
+    uint256 currRatio = ((currCollateral.wmul(oracle.read())).wdiv(currDebt.wmul(cTypeData.accumulatedRate))) / 1e7;
+    uint256 safetyCRatio = oracleParams.safetyCRatio / 10e24;
+    uint256 liquidationCRatio = oracleParams.liquidationCRatio / 10e24;
+
+    /// todo: safetyCRatio / currRatio = percentage increase in collateral needed
 
     _collateralAdded = type(uint256).max;
     _liquidatorReward = type(uint256).max;
