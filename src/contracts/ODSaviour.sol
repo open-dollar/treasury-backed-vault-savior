@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
+import {SAFEEngine, ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {LiquidationEngine, ILiquidationEngine} from '@opendollar/contracts/LiquidationEngine.sol';
 import {CollateralAuctionHouse, ICollateralAuctionHouse} from '@opendollar/contracts/CollateralAuctionHouse.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
 import {ISAFESaviour} from '../interfaces/ISAFESaviour.sol';
 import {AccessControl} from '@openzeppelin/access/AccessControl.sol';
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
+import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 
 /**
  * @notice Steps to save a safe using ODSaviour:
@@ -31,7 +33,6 @@ import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 struct SaviourInit {
   address saviourTreasury;
   address protocolGovernor;
-  address liquidationEngine;
   address vault721;
   bytes32[] cTypes;
   address[] saviourTokens;
@@ -46,7 +47,9 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   address public protocolGovernor;
   address public liquidationEngine;
 
-  address public vault721;
+  IVault721 public vault721;
+  IODSafeManager public safeManager;
+  ISAFEEngine public safeEngine;
 
   mapping(uint256 _vaultId => bool _enabled) private _enabledVaults;
   mapping(bytes32 _cType => address _tokenAddress) private _saviourTokenAddresses;
@@ -57,8 +60,10 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   constructor(SaviourInit memory _init) {
     saviourTreasury = _init.saviourTreasury;
     protocolGovernor = _init.protocolGovernor;
-    liquidationEngine = _init.liquidationEngine;
-    vault721 = _init.vault721;
+    vault721 = IVault721(_init.vault721);
+    safeManager = IODSafeManager(vault721.safeManager());
+    liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine(); // todo update @opendollar package to include `liquidationEngine` - PR #693
+    safeEngine = ISAFEEngine(safeManager.safeEngine());
 
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
 
@@ -99,7 +104,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     bytes32 _cType,
     address _safe
   ) external returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
-    uint256 vaultId = IVault721(vault721).safeManager().safeHandlerToSafeId(_safe);
+    uint256 vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (!_enabledVaults[vaultId]) revert VaultNotAllowed(vaultId);
 
     _collateralAdded = type(uint256).max;
