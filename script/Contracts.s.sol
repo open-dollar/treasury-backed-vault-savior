@@ -109,6 +109,7 @@ abstract contract Contracts {
   address public deployer;
   address public tlcGov;
   address public delegate;
+  uint256 public _governorPK;
   bytes32[] public collateralTypes;
   mapping(bytes32 => address) public delegatee;
 

@@ -36,7 +36,7 @@ contract SepoliaScript is SepoliaDeployment, Script {
   }
 }
 
-contract SepoliaDelegate is SepoliaDeployment, Common, Script {
+contract SepoliaDelegate is SepoliaDeployment, Script {
   function setUp() public virtual {
     _governorPK = uint256(vm.envBytes32('GOERLI_GOVERNOR_PK'));
     chainId = 421_614;
@@ -48,8 +48,6 @@ contract SepoliaDelegate is SepoliaDeployment, Common, Script {
     address _governor = vm.addr(_governorPK);
     require(_governor == tlcGov);
     vm.startBroadcast(_governor);
-
-    _delegateAllTo(delegate);
 
     vm.stopBroadcast();
   }
