@@ -123,13 +123,15 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     IOracleRelayer.OracleRelayerCollateralParams memory oracleParams = oracleRelayer.cParams(_cType);
     IDelayedOracle oracle = oracleParams.oracle;
 
-    uint256 currRatio = ((currCollateral.wmul(oracle.read())).wdiv(currDebt.wmul(cTypeData.accumulatedRate))) / 1e7;
+    uint256 currCRatio = ((currCollateral.wmul(oracle.read())).wdiv(currDebt.wmul(cTypeData.accumulatedRate))) / 1e7;
     uint256 safetyCRatio = oracleParams.safetyCRatio / 10e24;
-    uint256 liquidationCRatio = oracleParams.liquidationCRatio / 10e24;
+    uint256 diffCRatio = safetyCRatio.wdiv(currCRatio);
 
-    /// todo: safetyCRatio / currRatio = percentage increase in collateral needed
+    uint256 reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
 
-    _collateralAdded = type(uint256).max;
+    // todo: transferFrom ARB Treasury amount of reqCollateral
+
+    uint256 _collateralAdded = type(uint256).max;
     _liquidatorReward = type(uint256).max;
   }
 }
