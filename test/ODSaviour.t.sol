@@ -120,14 +120,23 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     assertEq(saviour.liquidatorReward(), 0);
   }
 
-  function test_Set_CollateralToken() public view {
+  function test_Set_SaviourTokens() public view {
     assertEq(saviour.cType(ARB), address(collateralToken));
   }
 
-  function test_Set_CollateralToken_Revert_LengthMismatch() public {
+  function test_Set_SaviourTokens_Revert_LengthMismatch() public {
     bytes32[] memory _mismatchTypes = new bytes32[](2);
     saviourInit.cTypes = _mismatchTypes;
     vm.expectRevert(IODSaviour.LengthMismatch.selector);
+    saviour = new ODSaviour(saviourInit);
+  }
+
+  function test_Set_SaviourTokens_Revert_NullAddress() public {
+    address[] memory _nullToken = new address[](1);
+    _nullToken[0] = address(0);
+
+    saviourInit.saviourTokens = _nullToken;
+    vm.expectRevert(Assertions.NullAddress.selector);
     saviour = new ODSaviour(saviourInit);
   }
 }

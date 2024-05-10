@@ -55,7 +55,7 @@ contract ODSaviour is AccessControl, IODSaviour {
     protocolGovernor = _init.protocolGovernor.assertNonNull();
     vault721 = IVault721(_init.vault721.assertNonNull());
     oracleRelayer = IOracleRelayer(_init.oracleRelayer.assertNonNull());
-    safeManager = IODSafeManager(address(vault721.safeManager()).assertNonNull());
+    safeManager = IODSafeManager(address(vault721.safeManager()));
     liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine(); // todo update @opendollar package to include `liquidationEngine` - PR #693
     collateralJoinFactory = ICollateralJoinFactory(_init.collateralJoinFactory.assertNonNull());
     safeEngine = ISAFEEngine(address(safeManager.safeEngine()));
