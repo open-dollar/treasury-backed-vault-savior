@@ -129,10 +129,13 @@ contract ODSaviour is AccessControl, ISAFESaviour {
 
     uint256 reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
 
-    // todo: transferFrom ARB Treasury amount of reqCollateral
-    address _to = address(0x420); // to SafeEngine?
-    _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, _to, reqCollateral);
+    // transferFrom ARB Treasury amount of reqCollateral
+    _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, address(this), reqCollateral);
 
+    /**
+     * todo
+     * 1. CollateralJoin call `join` with safeHandler + reqCollateral
+     */
     uint256 _collateralAdded = type(uint256).max;
     _liquidatorReward = type(uint256).max;
   }
