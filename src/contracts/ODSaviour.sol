@@ -59,7 +59,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   ISAFEEngine public safeEngine;
 
   mapping(uint256 _vaultId => bool _enabled) private _enabledVaults;
-  mapping(bytes32 _cType => address _tokenAddress) private _saviourTokenAddresses;
+  mapping(bytes32 _cType => IERC20 _tokenAddress) private _saviourTokenAddresses;
 
   /**
    * @param _init The SaviourInit struct;
@@ -76,7 +76,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
 
     for (uint256 i; i < _init.cTypes.length; i++) {
-      _saviourTokenAddresses[_init.cTypes[i]] = _init.saviourTokens[i];
+      _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i]);
     }
     grantRole(SAVIOUR_TREASURY, saviourTreasury);
     grantRole(PROTOCOL, protocolGovernor);
@@ -88,7 +88,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   }
 
   function addCType(bytes32 _cType, address _tokenAddress) external onlyRole(SAVIOUR_TREASURY) {
-    _saviourTokenAddresses[_cType] = _tokenAddress;
+    _saviourTokenAddresses[_cType] = IERC20(_tokenAddress);
     emit CollateralTypeAdded(_cType, _tokenAddress);
   }
 
@@ -130,6 +130,8 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     uint256 reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
 
     // todo: transferFrom ARB Treasury amount of reqCollateral
+    address _to = address(0x420); // to SafeEngine?
+    _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, _to, reqCollateral);
 
     uint256 _collateralAdded = type(uint256).max;
     _liquidatorReward = type(uint256).max;
