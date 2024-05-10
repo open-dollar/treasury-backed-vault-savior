@@ -3,15 +3,16 @@ pragma solidity 0.8.20;
 
 import {AccessControl} from '@openzeppelin/access/AccessControl.sol';
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
-import {SAFEEngine, ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
-import {LiquidationEngine, ILiquidationEngine} from '@opendollar/contracts/LiquidationEngine.sol';
-import {CollateralAuctionHouse, ICollateralAuctionHouse} from '@opendollar/contracts/CollateralAuctionHouse.sol';
+import {ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
+import {ICollateralJoinFactory} from '@opendollar/interfaces/factories/ICollateralJoinFactory.sol';
+import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
-import {ISAFESaviour} from '../interfaces/ISAFESaviour.sol';
+import {IODSaviour} from '../interfaces/IODSaviour.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
+import {Assertions} from '@opendollar/libraries/Assertions.sol';
 
 /**
  * @notice Steps to save a safe using ODSaviour:
@@ -23,27 +24,9 @@ import {Math} from '@opendollar/libraries/Math.sol';
  * 5. Safe in liquidation => auto call `LiquidationEngine.attemptSave` gets saviour from chosenSAFESaviour mapping
  * 6. Saviour => increases collateral `ODSaviour.saveSAFE`
  */
-
-/**
- * @notice SaviourInit struct
- *   @param saviourTreasury the address of the saviour treasury
- *   @param protocolGovernor the address of the protocol governor
- *   @param liquidationEngine the address ot the liquidation engine;
- *   @param vault721 the address of the vault721
- *   @param cTypes an array of collateral types that can be used in this saviour (bytes32('ARB'));
- *   @param saviourTokens the addresses of the saviour tokens to be used in this contract;
- */
-struct SaviourInit {
-  address saviourTreasury;
-  address protocolGovernor;
-  address vault721;
-  address oracleRelayer;
-  bytes32[] cTypes;
-  address[] saviourTokens;
-}
-
-contract ODSaviour is AccessControl, ISAFESaviour {
+contract ODSaviour is AccessControl, IODSaviour {
   using Math for uint256;
+  using Assertions for address;
 
   //solhint-disable-next-line modifier-name-mixedcase
   bytes32 public constant SAVIOUR_TREASURY = keccak256(abi.encode('SAVIOUR_TREASURY'));
@@ -57,6 +40,7 @@ contract ODSaviour is AccessControl, ISAFESaviour {
   IOracleRelayer public oracleRelayer;
   IODSafeManager public safeManager;
   ISAFEEngine public safeEngine;
+  ICollateralJoinFactory public collateralJoinFactory;
 
   mapping(uint256 _vaultId => bool _enabled) private _enabledVaults;
   mapping(bytes32 _cType => IERC20 _tokenAddress) private _saviourTokenAddresses;
@@ -65,18 +49,19 @@ contract ODSaviour is AccessControl, ISAFESaviour {
    * @param _init The SaviourInit struct;
    */
   constructor(SaviourInit memory _init) {
-    saviourTreasury = _init.saviourTreasury;
-    protocolGovernor = _init.protocolGovernor;
-    vault721 = IVault721(_init.vault721);
-    oracleRelayer = IOracleRelayer(_init.oracleRelayer);
-    safeManager = IODSafeManager(vault721.safeManager());
-    liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine(); // todo update @opendollar package to include `liquidationEngine` - PR #693
-    safeEngine = ISAFEEngine(safeManager.safeEngine());
+    saviourTreasury = _init.saviourTreasury.assertNonNull();
+    protocolGovernor = _init.protocolGovernor.assertNonNull();
+    vault721 = IVault721(_init.vault721.assertNonNull());
+    oracleRelayer = IOracleRelayer(_init.oracleRelayer.assertNonNull());
+    safeManager = IODSafeManager(address(vault721.safeManager()).assertNonNull());
+    liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine().assertNonNull(); // todo update @opendollar package to include `liquidationEngine` - PR #693
+    collateralJoinFactory = ICollateralJoinFactory(_init.collateralJoinFactory.assertNonNull());
+    safeEngine = ISAFEEngine(address(safeManager.safeEngine()).assertNonNull());
 
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
 
     for (uint256 i; i < _init.cTypes.length; i++) {
-      _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i]);
+      _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
     }
     grantRole(SAVIOUR_TREASURY, saviourTreasury);
     grantRole(PROTOCOL, protocolGovernor);
@@ -115,28 +100,48 @@ contract ODSaviour is AccessControl, ISAFESaviour {
     uint256 vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (!_enabledVaults[vaultId]) revert VaultNotAllowed(vaultId);
 
-    ISAFEEngine.SAFE memory SafeEngineData = safeEngine.safes(_cType, _safe);
-    uint256 currCollateral = SafeEngineData.lockedCollateral;
-    uint256 currDebt = SafeEngineData.generatedDebt;
-
-    ISAFEEngine.SAFEEngineCollateralData memory cTypeData = safeEngine.cData(_cType);
     IOracleRelayer.OracleRelayerCollateralParams memory oracleParams = oracleRelayer.cParams(_cType);
     IDelayedOracle oracle = oracleParams.oracle;
 
-    uint256 currCRatio = ((currCollateral.wmul(oracle.read())).wdiv(currDebt.wmul(cTypeData.accumulatedRate))) / 1e7;
-    uint256 safetyCRatio = oracleParams.safetyCRatio / 10e24;
-    uint256 diffCRatio = safetyCRatio.wdiv(currCRatio);
+    uint256 reqCollateral;
 
-    uint256 reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
+    {
+      (uint256 currCollateral, uint256 currDebt) = _getCurrentCollateralAndDebt(_cType, _safe);
+      uint256 accumulatedRate = safeEngine.cData(_cType).accumulatedRate;
 
+      uint256 currCRatio = ((currCollateral.wmul(oracle.read())).wdiv(currDebt.wmul(accumulatedRate))) / 1e7;
+      uint256 safetyCRatio = oracleParams.safetyCRatio / 10e24;
+      uint256 diffCRatio = safetyCRatio.wdiv(currCRatio);
+
+      reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
+    }
+    
     // transferFrom ARB Treasury amount of reqCollateral
     _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, address(this), reqCollateral);
 
+    if (_saviourTokenAddresses[_cType].balanceOf(address(this)) == reqCollateral) {
+      address collateralJoin = collateralJoinFactory.collateralJoins(_cType);
+      ICollateralJoin(collateralJoin).join(_safe, reqCollateral);
+      emit SafeSaved(vaultId, reqCollateral);
+      _ok = true;
+    } else {
+      _ok = false;
+      revert CollateralTransferFailed();
+    }
     /**
      * todo
      * 1. CollateralJoin call `join` with safeHandler + reqCollateral
      */
-    uint256 _collateralAdded = type(uint256).max;
+    _collateralAdded = type(uint256).max;
     _liquidatorReward = type(uint256).max;
+  }
+
+  function _getCurrentCollateralAndDebt(
+    bytes32 _cType,
+    address _safe
+  ) internal returns (uint256 currCollateral, uint256 currDebt) {
+    ISAFEEngine.SAFE memory SafeEngineData = safeEngine.safes(_cType, _safe);
+    currCollateral = SafeEngineData.lockedCollateral;
+    currDebt = SafeEngineData.generatedDebt;
   }
 }
