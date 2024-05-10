@@ -21,7 +21,7 @@ import {
   IModifiable
 } from '@script/Contracts.s.sol';
 
-import {WAD, RAY, RAD} from '@libraries/Math.sol';
+import {WAD, RAY, RAD} from '@opendollar/libraries/Math.sol';
 
 // --- Utils ---
 

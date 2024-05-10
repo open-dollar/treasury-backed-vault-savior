@@ -4,12 +4,12 @@ pragma solidity 0.8.20;
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
+import {Assertions} from '@opendollar/libraries/Assertions.sol';
 import {ODSaviour} from '../src/contracts/ODSaviour.sol';
 import {ISAFESaviour} from '../src/interfaces/ISAFESaviour.sol';
 import {IODSaviour} from '../src/interfaces/IODSaviour.sol';
 import {SetUp} from './SetUp.sol';
 import {ISAFEEngine} from './SetUp.sol';
-import {Assertions} from '@libraries/Assertions.sol';
 import {OracleRelayerForTest} from './mock-contracts/OracleRelayerForTest.sol';
 
 contract ODSaviour_SetUp is SetUp {
@@ -30,7 +30,6 @@ contract ODSaviour_SetUp is SetUp {
 
     oracleRelayer = address(new OracleRelayerForTest());
 
-   
     saviourInit = IODSaviour.SaviourInit({
       saviourTreasury: saviourTreasury,
       protocolGovernor: protocolGovernor,
@@ -41,8 +40,6 @@ contract ODSaviour_SetUp is SetUp {
       saviourTokens: _tokens,
       liquidatorReward: 0
     });
-
-
 
     saviour = new ODSaviour(saviourInit);
 
@@ -152,7 +149,8 @@ contract Unit_ODSaviour_Deployment is ODSaviour_SetUp {
 }
 
 contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
-   event SafeSaved(uint256 _vaultId, uint256 _reqCollateral);
+  event SafeSaved(uint256 _vaultId, uint256 _reqCollateral);
+
   address safeHandler;
 
   struct Liquidation {
@@ -166,31 +164,33 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     uint256 liquidationPenalty;
     uint256 liquidationQuantity;
   }
+
   Liquidation public liquidation;
 
   function setUp() public override {
     super.setUp();
-        safeHandler = safeManager.safeData(vaultId).safeHandler;
-        vm.prank(aliceProxy);
-        safeManager.protectSAFE(vaultId, address(saviour));
-        vm.prank(saviourTreasury);
-        saviour.setVaultStatus(vaultId, true);
+    safeHandler = safeManager.safeData(vaultId).safeHandler;
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.setVaultStatus(vaultId, true);
 
-        collateralToken.mint(saviourTreasury, 10000000000000000000000000 ether);
-        vm.prank(saviourTreasury);
-        collateralToken.approve(address(saviour), type(uint256).max);
+    collateralToken.mint(saviourTreasury, 10_000_000_000_000_000_000_000_000 ether);
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
   }
+
   function test_SaveSafe() public {
     // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
     liquidation = Liquidation({
-      accumulatedRate: _ray(10) ,
-      debtFloor: 10000,
-      liquidationPrice: 30000,
+      accumulatedRate: _ray(10),
+      debtFloor: 10_000,
+      liquidationPrice: 30_000,
       safeCollateral: 1 ether,
       safeDebt: 10 ether,
       onAuctionSystemCoinLimit: 100 ether,
       currentOnAuctionSystemCoins: 10 ether,
-      liquidationPenalty: 20000,
+      liquidationPenalty: 20_000,
       liquidationQuantity: 1 ether
     });
     vm.startPrank(aliceProxy);
@@ -198,18 +198,29 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     collateralToken.approve(address(collateralChild), type(uint256).max);
     collateralChild.join(safeHandler, 10 ether);
     vm.mockCall(taxCollector, abi.encodeWithSignature('taxSingle(bytes32)', ARB), abi.encode(0));
-    safeManager.modifySAFECollateralization(vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false);
+    safeManager.modifySAFECollateralization(
+      vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false
+    );
 
     vm.stopPrank();
-    vm.mockCall(address(safeEngine), abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB), abi.encode(ISAFEEngine.SAFEEngineCollateralData({
-      debtAmount: 1000000000000000000 , lockedAmount: 10000000000000000000 , accumulatedRate: _rad(1000) , safetyPrice: 1000000000000000000000000000 , liquidationPrice: _rad(1)
-    })));
+    vm.mockCall(
+      address(safeEngine),
+      abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
+      abi.encode(
+        ISAFEEngine.SAFEEngineCollateralData({
+          debtAmount: 1_000_000_000_000_000_000,
+          lockedAmount: 10_000_000_000_000_000_000,
+          accumulatedRate: _rad(1000),
+          safetyPrice: 1_000_000_000_000_000_000_000_000_000,
+          liquidationPrice: _rad(1)
+        })
+      )
+    );
     // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
     vm.expectEmit(true, false, false, false);
-     emit SafeSaved(vaultId, 1 ether);
+    emit SafeSaved(vaultId, 1 ether);
 
-  liquidationEngine.liquidateSAFE(ARB, safeHandler);
-
+    liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 
   /// test that safe is liquidated without saviour
