@@ -13,7 +13,7 @@ import {IODSaviour} from '../interfaces/IODSaviour.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
-
+import 'forge-std/console2.sol';
 /**
  * @notice Steps to save a safe using ODSaviour:
  *
@@ -110,7 +110,6 @@ contract ODSaviour is AccessControl, IODSaviour {
     bytes32 _cType,
     address _safe
   ) external onlyRole(PROTOCOL) returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
-    if (liquidationEngine != _liquidator) revert OnlyLiquidationEngine();
     uint256 _vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (_vaultId == 0) {
       _collateralAdded = type(uint256).max;
@@ -118,6 +117,7 @@ contract ODSaviour is AccessControl, IODSaviour {
       _ok = true;
       return (_ok, _collateralAdded, _liquidatorReward);
     }
+    console2.log("attempting save");
     if (!_enabledVaults[_vaultId]) revert VaultNotAllowed(_vaultId);
 
     IOracleRelayer.OracleRelayerCollateralParams memory _oracleParams = oracleRelayer.cParams(_cType);
@@ -127,8 +127,9 @@ contract ODSaviour is AccessControl, IODSaviour {
 
     {
       (uint256 _currCollateral, uint256 _currDebt) = _getCurrentCollateralAndDebt(_cType, _safe);
+      console2.log("curr coll", _currCollateral);
+      console2.log("curr debt", _currDebt);
       uint256 _accumulatedRate = safeEngine.cData(_cType).accumulatedRate;
-
       uint256 _currCRatio = ((_currCollateral.wmul(_oracle.read())).wdiv(_currDebt.wmul(_accumulatedRate))) / 1e9;
       uint256 _safetyCRatio = _oracleParams.safetyCRatio / 10e27;
       uint256 _diffCRatio = _safetyCRatio.wdiv(_currCRatio);
@@ -151,10 +152,6 @@ contract ODSaviour is AccessControl, IODSaviour {
       _ok = false;
       revert CollateralTransferFailed();
     }
-    /**
-     * todo
-     * 1. CollateralJoin call `join` with safeHandler + reqCollateral
-     */
   }
 
   function _getCurrentCollateralAndDebt(

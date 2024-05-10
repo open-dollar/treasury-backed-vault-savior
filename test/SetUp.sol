@@ -14,6 +14,7 @@ import {SAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {ICollateralAuctionHouse} from '@opendollar/interfaces/ICollateralAuctionHouse.sol';
 import {CollateralJoinFactory} from '@opendollar/contracts/factories/CollateralJoinFactory.sol';
 import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
+import {IModifiablePerCollateral} from '@opendollar/interfaces/utils/IModifiablePerCollateral.sol';
 
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {MintableERC20} from './mock-contracts/MintableERC20.sol';
@@ -24,8 +25,8 @@ import {LiquidationEngineForTest} from './mock-contracts/LiquidationEngineForTes
 import {EnumerableSet} from '@openzeppelin/utils/structs/EnumerableSet.sol';
 
 import {StdStorage, stdStorage} from 'forge-std/StdStorage.sol';
-import {Math, MAX_RAD, RAY, WAD} from '@libraries/Math.sol';
-import {Assertions} from '@libraries/Assertions.sol';
+import {Math, MAX_RAD, RAY, WAD}from '@opendollar/libraries/Math.sol';
+import {Assertions} from '@opendollar/libraries/Assertions.sol';
 
 contract SetUp is Test {
   using stdStorage for StdStorage;
@@ -35,7 +36,7 @@ contract SetUp is Test {
   uint256 public auctionId = 123_456;
 
   address public deployer = _label('deployer');
-  address public mockCollateralAuctionHouse = _label('collateralTypeSampleAuctionHouse');
+  address public mockCollateralAuctionHouse = address(new DummyCollateralAuctionHouse());
   address public mockSaviour = _label('saviour');
   address public alice = _label('alice');
   address public aliceProxy;
@@ -51,12 +52,14 @@ contract SetUp is Test {
   IAccountingEngine public mockAccountingEngine = IAccountingEngine(_mockContract('AccountingEngine'));
   CollateralJoinFactory public collateralJoinFactory;
   ICollateralJoin public collateralChild;
+
   address public taxCollector = _mockContract('taxCollector');
   address public timelockController = _mockContract('timelockController');
+
   LiquidationEngine public liquidationEngine;
 
   // NOTE: calculating _limitAdjustedDebt to mock call is complex, so we use a contract for test
-  ICollateralAuctionHouse _collateralAuctionHouseForTest =
+  ICollateralAuctionHouse public collateralAuctionHouseForTest =
     ICollateralAuctionHouse(address(new DummyCollateralAuctionHouse()));
 
   ILiquidationEngine.LiquidationEngineParams _liquidationEngineParams = ILiquidationEngine.LiquidationEngineParams({
@@ -64,7 +67,7 @@ contract SetUp is Test {
     saviourGasLimit: 3_000_000
   });
   ISAFEEngine.SAFEEngineParams _safeEngineParams =
-    ISAFEEngine.SAFEEngineParams({safeDebtCeiling: type(uint256).max, globalDebtCeiling: 0});
+    ISAFEEngine.SAFEEngineParams({safeDebtCeiling: type(uint256).max, globalDebtCeiling: _rad(100000 ether)});
 
   function setUp() public virtual {
     vm.startPrank(deployer);
@@ -94,8 +97,12 @@ contract SetUp is Test {
       new LiquidationEngineForTest(address(safeEngine), address(mockAccountingEngine), _liquidationEngineParams);
     vm.label(address(liquidationEngine), 'LiquidationEngine');
 
+    ILiquidationEngine.LiquidationEngineCollateralParams memory __collateralParams = ILiquidationEngine.LiquidationEngineCollateralParams({collateralAuctionHouse: mockCollateralAuctionHouse, liquidationPenalty: 1, liquidationQuantity: _rad(1)});
+    
+    liquidationEngine.initializeCollateralType(ARB, abi.encode(__collateralParams));
     safeManager =
-      new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
+    new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
+    safeEngine.addAuthorization(address(liquidationEngine));
     vm.stopPrank();
     vm.prank(alice);
     aliceProxy = vault721.build();
