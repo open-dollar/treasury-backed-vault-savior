@@ -8,28 +8,36 @@ import {SetUp} from './SetUp.sol';
 
 contract ODSaviourSetUp is SetUp {
   ODSaviour public saviour;
-  address _saviourTreasury = _mockContract('saviourTreasury');
-  address _protocolGovernor = _mockContract('protocolGovernor');
-  address _oracleRelayer = _mockContract('oracleRelayer');
+  address public saviourTreasury = _mockContract('saviourTreasury');
+  address public protocolGovernor = _mockContract('protocolGovernor');
+  address public oracleRelayer = _mockContract('oracleRelayer');
 
   function setUp() public override {
     super.setUp();
-
     bytes32[] memory _cTypes = new bytes32[](1);
     _cTypes[0] = ARB;
     address[] memory _tokens = new address[](1);
     _tokens[0] = address(collateralToken);
 
     IODSaviour.SaviourInit memory _saviourInit = IODSaviour.SaviourInit({
-      saviourTreasury: _saviourTreasury,
-      protocolGovernor: _protocolGovernor,
+      saviourTreasury: saviourTreasury,
+      protocolGovernor: protocolGovernor,
       vault721: address(vault721),
-      oracleRelayer: _oracleRelayer,
+      oracleRelayer: oracleRelayer,
       collateralJoinFactory: address(collateralJoinFactory),
       cTypes: _cTypes,
       saviourTokens: _tokens
     });
 
     saviour = new ODSaviour(_saviourInit);
+
+    liquidationEngine.connectSAFESaviour(address(saviour));
+    vm.stopPrank();
+  }
+}
+
+contract TestODSaviourDeployment is ODSaviourSetUp {
+  function test_ODSaviour_Depolyment() public {
+    assertEq(saviour.liquidationEngine(), address(liquidationEngine));
   }
 }

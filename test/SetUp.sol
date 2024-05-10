@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
+
 import 'forge-std/Test.sol';
 import {LiquidationEngine} from '@opendollar/contracts/LiquidationEngine.sol';
 import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
@@ -29,6 +30,8 @@ import {Assertions} from '@libraries/Assertions.sol';
 contract SetUp is Test {
   using stdStorage for StdStorage;
 
+  bytes32 public nextAddressSeed = keccak256(abi.encodePacked('address'));
+
   uint256 public auctionId = 123_456;
 
   address public deployer = _label('deployer');
@@ -52,8 +55,6 @@ contract SetUp is Test {
   address public timelockController = _mockContract('timelockController');
   LiquidationEngine public liquidationEngine;
 
-  bytes32 public nextAddressSeed = keccak256(abi.encodePacked('address'));
-
   // NOTE: calculating _limitAdjustedDebt to mock call is complex, so we use a contract for test
   ICollateralAuctionHouse _collateralAuctionHouseForTest =
     ICollateralAuctionHouse(address(new DummyCollateralAuctionHouse()));
@@ -73,7 +74,8 @@ contract SetUp is Test {
     safeEngine = new SAFEEngine(_safeEngineParams);
 
     ISAFEEngine.SAFEEngineCollateralParams memory _collateralParams =
-      ISAFEEngine.SAFEEngineCollateralParams({debtCeiling: rad(1000 ether), debtFloor: 0});
+      ISAFEEngine.SAFEEngineCollateralParams({debtCeiling: _rad(1000 ether), debtFloor: 0});
+
     safeEngine.initializeCollateralType(ARB, abi.encode(_collateralParams));
 
     collateralJoinFactory = new CollateralJoinFactory(address(safeEngine));
@@ -82,7 +84,7 @@ contract SetUp is Test {
 
     collateralChild = collateralJoinFactory.deployCollateralJoin(ARB, address(collateralToken));
 
-    safeEngine.updateCollateralPrice('gold', ray(1 ether), ray(1 ether));
+    safeEngine.updateCollateralPrice('gold', _ray(1 ether), _ray(1 ether));
 
     vault721 = new Vault721();
 
@@ -94,6 +96,7 @@ contract SetUp is Test {
 
     safeManager =
       new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
+    
   }
 
   function _label(string memory name) internal returns (address) {

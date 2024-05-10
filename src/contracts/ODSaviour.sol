@@ -63,9 +63,9 @@ contract ODSaviour is AccessControl, IODSaviour {
     for (uint256 i; i < _init.cTypes.length; i++) {
       _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
     }
-    grantRole(SAVIOUR_TREASURY, saviourTreasury);
-    grantRole(PROTOCOL, protocolGovernor);
-    grantRole(PROTOCOL, liquidationEngine);
+    _setupRole(SAVIOUR_TREASURY, saviourTreasury);
+    _setupRole(PROTOCOL, protocolGovernor);
+    _setupRole(PROTOCOL, liquidationEngine);
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled) {
@@ -115,7 +115,7 @@ contract ODSaviour is AccessControl, IODSaviour {
 
       reqCollateral = (currCollateral.wmul(diffCRatio)) - currCollateral;
     }
-    
+
     // transferFrom ARB Treasury amount of reqCollateral
     _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, address(this), reqCollateral);
 
