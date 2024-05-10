@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
-
 import 'forge-std/Test.sol';
 import {LiquidationEngine} from '@opendollar/contracts/LiquidationEngine.sol';
 import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
@@ -15,6 +14,7 @@ import {SAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {ICollateralAuctionHouse} from '@opendollar/interfaces/ICollateralAuctionHouse.sol';
 import {CollateralJoinFactory} from '@opendollar/contracts/factories/CollateralJoinFactory.sol';
 import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
+
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {MintableERC20} from './mock-contracts/MintableERC20.sol';
 
@@ -41,7 +41,7 @@ contract SetUp is Test {
   address public mockSaviour = _label('saviour');
   address public user = _label('user');
 
-  bytes32 public ARB = 'ARB';
+  bytes32 public ARB = bytes32(abi.encodePacked('ARB'));
 
   MintableERC20 public collateralToken;
 
@@ -84,7 +84,7 @@ contract SetUp is Test {
 
     collateralChild = collateralJoinFactory.deployCollateralJoin(ARB, address(collateralToken));
 
-    safeEngine.updateCollateralPrice('gold', _ray(1 ether), _ray(1 ether));
+    safeEngine.updateCollateralPrice(ARB, _ray(1 ether), _ray(1 ether));
 
     vault721 = new Vault721();
 
@@ -96,20 +96,19 @@ contract SetUp is Test {
 
     safeManager =
       new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
-    
   }
 
   function _label(string memory name) internal returns (address) {
-    address _newAddress = _newAddress();
-    vm.label(_newAddress, name);
-    return _newAddress;
+    address _newAddr = _newAddress();
+    vm.label(_newAddr, name);
+    return _newAddr;
   }
 
   function _mockContract(string memory name) internal returns (address) {
-    address _newAddress = _newAddress();
-    vm.etch(_newAddress, new bytes(0x1));
-    vm.label(_newAddress, 'name');
-    return _newAddress;
+    address _newAddr = _newAddress();
+    vm.etch(_newAddr, new bytes(0x1));
+    vm.label(_newAddr, name);
+    return _newAddr;
   }
 
   function _newAddress() internal returns (address) {

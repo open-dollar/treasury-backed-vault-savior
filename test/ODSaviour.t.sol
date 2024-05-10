@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
+import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
+import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
+import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 import {ODSaviour} from '../src/contracts/ODSaviour.sol';
 import {ISAFESaviour} from '../src/interfaces/ISAFESaviour.sol';
 import {IODSaviour} from '../src/interfaces/IODSaviour.sol';
@@ -26,11 +29,22 @@ contract ODSaviourSetUp is SetUp {
       oracleRelayer: oracleRelayer,
       collateralJoinFactory: address(collateralJoinFactory),
       cTypes: _cTypes,
-      saviourTokens: _tokens
+      saviourTokens: _tokens,
+      liquidatorReward: 1 ether
     });
 
     saviour = new ODSaviour(_saviourInit);
 
+    IOracleRelayer.OracleRelayerCollateralParams memory oracleCParams = IOracleRelayer.OracleRelayerCollateralParams({
+      oracle: IDelayedOracle(address(1)),
+      safetyCRatio: 1.25e27,
+      liquidationCRatio: 1.2e27
+    });
+
+    vm.mockCall(
+      oracleRelayer, abi.encodeWithSelector(IOracleRelayer.cParams.selector, bytes32(0)), abi.encode(oracleCParams)
+    );
+    vm.mockCall(address(1), abi.encodeWithSelector(IBaseOracle.read.selector), abi.encode(1 ether));
     liquidationEngine.connectSAFESaviour(address(saviour));
     vm.stopPrank();
   }

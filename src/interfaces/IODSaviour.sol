@@ -4,14 +4,16 @@ pragma solidity 0.8.20;
 import {ISAFESaviour} from './ISAFESaviour.sol';
 
 interface IODSaviour is ISAFESaviour {
-  error OnlySaviourTreasury();
-  error LengthMismatch();
-  error VaultNotAllowed(uint256 vaultId);
-  error CollateralTransferFailed();
-
   event VaultStatusSet(uint256 _vaultId, bool _enabled);
   event CollateralTypeAdded(bytes32 _cType, address _tokenAddress);
   event SafeSaved(uint256 _vaultId, uint256 _reqCollateral);
+  event LiquidatorRewardSet(uint256 _newReward);
+
+  error OnlySaviourTreasury();
+  error LengthMismatch();
+  error VaultNotAllowed(uint256 _vaultId);
+  error CollateralTransferFailed();
+  error OnlyLiquidationEngine();
 
   /**
    * @notice SaviourInit struct
@@ -30,6 +32,7 @@ interface IODSaviour is ISAFESaviour {
     address collateralJoinFactory;
     bytes32[] cTypes;
     address[] saviourTokens;
+    uint256 liquidatorReward;
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled);
