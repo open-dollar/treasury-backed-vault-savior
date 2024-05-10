@@ -35,11 +35,11 @@ contract SetUp is Test {
   uint256 public auctionId = 123_456;
 
   address public deployer = _label('deployer');
-  address public account = _label('account');
-  address public safe = _label('safe');
   address public mockCollateralAuctionHouse = _label('collateralTypeSampleAuctionHouse');
   address public mockSaviour = _label('saviour');
-  address public user = _label('user');
+  address public alice = _label('alice');
+  address public aliceProxy;
+  uint256 public vaultId;
 
   bytes32 public ARB = bytes32(abi.encodePacked('ARB'));
 
@@ -96,6 +96,11 @@ contract SetUp is Test {
 
     safeManager =
       new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
+    vm.stopPrank();
+    vm.prank(alice);
+    aliceProxy = vault721.build();
+    vm.prank(aliceProxy);
+    vaultId = safeManager.openSAFE(ARB, aliceProxy);
   }
 
   function _label(string memory name) internal returns (address) {

@@ -56,13 +56,13 @@ contract ODSaviour is AccessControl, IODSaviour {
     vault721 = IVault721(_init.vault721.assertNonNull());
     oracleRelayer = IOracleRelayer(_init.oracleRelayer.assertNonNull());
     safeManager = IODSafeManager(address(vault721.safeManager()).assertNonNull());
-    liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine().assertNonNull(); // todo update @opendollar package to include `liquidationEngine` - PR #693
+    liquidationEngine = ODSafeManager(address(safeManager)).liquidationEngine(); // todo update @opendollar package to include `liquidationEngine` - PR #693
     collateralJoinFactory = ICollateralJoinFactory(_init.collateralJoinFactory.assertNonNull());
-    safeEngine = ISAFEEngine(address(safeManager.safeEngine()).assertNonNull());
+    safeEngine = ISAFEEngine(address(safeManager.safeEngine()));
     liquidatorReward = _init.liquidatorReward;
 
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
-    
+
     // solhint-disable-next-line  defi-wonderland/non-state-vars-leading-underscore
     for (uint256 i; i < _init.cTypes.length; i++) {
       _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
@@ -79,6 +79,10 @@ contract ODSaviour is AccessControl, IODSaviour {
   function addCType(bytes32 _cType, address _tokenAddress) external onlyRole(SAVIOUR_TREASURY) {
     _saviourTokenAddresses[_cType] = IERC20(_tokenAddress);
     emit CollateralTypeAdded(_cType, _tokenAddress);
+  }
+
+  function cType(bytes32 _cType) public view returns (address _tokenAddress) {
+    return address(_saviourTokenAddresses[_cType]);
   }
 
   function setLiquidatorReward(uint256 _newReward) external onlyRole(PROTOCOL) {
