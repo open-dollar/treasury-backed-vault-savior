@@ -72,10 +72,10 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@opendollar/contracts@^0.0.0-32a147f2":
-  version "0.0.0-32a147f2"
-  resolved "https://registry.yarnpkg.com/@opendollar/contracts/-/contracts-0.0.0-32a147f2.tgz#5cf9ef92bdc19a26f555854d8cf0b9bec19dd38d"
-  integrity sha512-LB0SDDt+AalN1+Pp9WiNktR82rczFWJmccJQMXljCfTYVj12aAuX7AfhpLBvQrfK1ZnMrbip1duju4H3DtYh1g==
+"@opendollar/contracts@0.0.0-0178a1cf":
+  version "0.0.0-0178a1cf"
+  resolved "https://registry.yarnpkg.com/@opendollar/contracts/-/contracts-0.0.0-0178a1cf.tgz#f2211d12b44c74205ff140f24fcb6634c5c2cf0d"
+  integrity sha512-ZrqVmptdjVr75OzVxY89g9rQd+y7jrKLxcGRom1Msa8qwq1CcRiGBpJhYtoc+2vaRMxv7WrJ/W/MSPkAizyh5A==
   dependencies:
     "@defi-wonderland/solidity-utils" "0.0.0-4298c6c6"
     "@openzeppelin/contracts" "4.9.6"
@@ -746,13 +746,13 @@ flatted@^2.0.0:
   resolved "https://registry.yarnpkg.com/flatted/-/flatted-2.0.2.tgz#4575b21e2bcee7434aa9be662f4b7b5f9c2b5138"
   integrity sha512-r5wGx7YeOwNWNlCA0wQ86zKyDLMQr+/RB8xy74M4hTphfmjlijTSSXGuH8rnvKZnfT9i+75zmd8jcKdMR4O6jA==
 
+"forge-std@git+https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e":
+  version "1.5.6"
+  resolved "git+https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+
 "forge-std@https://github.com/foundry-rs/forge-std":
   version "1.7.6"
   resolved "https://github.com/foundry-rs/forge-std#5475f852e3f530d7e25dfb4596aa1f9baa8ffdfc"
-
-"forge-std@https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e":
-  version "1.5.6"
-  resolved "https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
 
 form-data-encoder@^2.1.2:
   version "2.1.4"
