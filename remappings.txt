@@ -6,6 +6,8 @@
 @opendollar/libraries/=node_modules/@opendollar/contracts/src/libraries/
 @opendollar/test/=node_modules/@opendollar/contracts/test/
 
+@defi-wonderland/solidity-utils/=node_modules/@defi-wonderland/solidity-utils/solidity/
+
 @script/=script/
 @contracts/=src/contracts/
 @test/=test/
