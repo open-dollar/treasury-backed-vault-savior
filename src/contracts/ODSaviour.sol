@@ -68,9 +68,10 @@ contract ODSaviour is AccessControl, IODSaviour {
     for (uint256 i; i < _init.cTypes.length; i++) {
       _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
     }
-    _setupRole(SAVIOUR_TREASURY, saviourTreasury);
-    _setupRole(PROTOCOL, protocolGovernor);
-    _setupRole(PROTOCOL, liquidationEngine);
+    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    _grantRole(SAVIOUR_TREASURY, saviourTreasury);
+    _grantRole(PROTOCOL, protocolGovernor);
+    _grantRole(PROTOCOL, liquidationEngine);
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled) {
