@@ -25,7 +25,7 @@ import {LiquidationEngineForTest} from './mock-contracts/LiquidationEngineForTes
 import {EnumerableSet} from '@openzeppelin/utils/structs/EnumerableSet.sol';
 
 import {StdStorage, stdStorage} from 'forge-std/StdStorage.sol';
-import {Math, MAX_RAD, RAY, WAD}from '@opendollar/libraries/Math.sol';
+import {Math, MAX_RAD, RAY, WAD} from '@opendollar/libraries/Math.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
 
 contract SetUp is Test {
@@ -67,7 +67,7 @@ contract SetUp is Test {
     saviourGasLimit: 3_000_000
   });
   ISAFEEngine.SAFEEngineParams _safeEngineParams =
-    ISAFEEngine.SAFEEngineParams({safeDebtCeiling: type(uint256).max, globalDebtCeiling: _rad(100000 ether)});
+    ISAFEEngine.SAFEEngineParams({safeDebtCeiling: type(uint256).max, globalDebtCeiling: _rad(100_000 ether)});
 
   function setUp() public virtual {
     vm.startPrank(deployer);
@@ -97,11 +97,16 @@ contract SetUp is Test {
       new LiquidationEngineForTest(address(safeEngine), address(mockAccountingEngine), _liquidationEngineParams);
     vm.label(address(liquidationEngine), 'LiquidationEngine');
 
-    ILiquidationEngine.LiquidationEngineCollateralParams memory __collateralParams = ILiquidationEngine.LiquidationEngineCollateralParams({collateralAuctionHouse: mockCollateralAuctionHouse, liquidationPenalty: 1, liquidationQuantity: _rad(1)});
-    
+    ILiquidationEngine.LiquidationEngineCollateralParams memory __collateralParams = ILiquidationEngine
+      .LiquidationEngineCollateralParams({
+      collateralAuctionHouse: mockCollateralAuctionHouse,
+      liquidationPenalty: 1,
+      liquidationQuantity: _rad(1)
+    });
+
     liquidationEngine.initializeCollateralType(ARB, abi.encode(__collateralParams));
     safeManager =
-    new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
+      new ODSafeManager(address(safeEngine), address(vault721), address(taxCollector), address(liquidationEngine));
     safeEngine.addAuthorization(address(liquidationEngine));
     vm.stopPrank();
     vm.prank(alice);

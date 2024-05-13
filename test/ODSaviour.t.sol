@@ -60,7 +60,7 @@ contract ODSaviour_SetUp is SetUp {
   }
 }
 
-contract Unit_ODSaviour_Deployment is ODSaviour_SetUp {
+contract UnitODSaviourDeployment is ODSaviour_SetUp {
   function test_Set_LiquidationEngine() public view {
     assertEq(address(saviour.liquidationEngine()), address(liquidationEngine));
   }
@@ -148,10 +148,10 @@ contract Unit_ODSaviour_Deployment is ODSaviour_SetUp {
   }
 }
 
-contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
+contract UnitODSaviourSaveSafe is ODSaviour_SetUp {
   event SafeSaved(uint256 _vaultId, uint256 _reqCollateral);
 
-  address safeHandler;
+  address public safeHandler;
 
   struct Liquidation {
     uint256 accumulatedRate;
@@ -203,6 +203,8 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     );
 
     vm.stopPrank();
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
     vm.mockCall(
       address(safeEngine),
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),

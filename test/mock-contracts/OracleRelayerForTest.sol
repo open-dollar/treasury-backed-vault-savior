@@ -5,14 +5,12 @@ import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol'
 import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 
 contract OracleRelayerForTest {
-
   struct OracleRelayerParams {
     // Upper bound for the per-second redemption rate
     uint256 /* RAY */ redemptionRateUpperBound;
     // Lower bound for the per-second redemption rate
     uint256 /* RAY */ redemptionRateLowerBound;
   }
-
 
   struct OracleRelayerCollateralParams {
     // Usually a DelayedOracle that enforces delays to fresh price feeds
@@ -22,17 +20,18 @@ contract OracleRelayerForTest {
     // CRatio used to compute the 'liquidationPrice' - the price used when liquidating SAFEs
     uint256 /* RAY    */ liquidationCRatio;
   }
-  constructor(
 
-  )  {}
+  constructor() {}
 
-
-  function cParams(bytes32 _cType)external returns(OracleRelayerCollateralParams memory){
-    return OracleRelayerCollateralParams({oracle: IDelayedOracle(address(this)), safetyCRatio: 1e27, liquidationCRatio: 1e27});
+  function cParams(bytes32 _cType) external returns (OracleRelayerCollateralParams memory) {
+    return OracleRelayerCollateralParams({
+      oracle: IDelayedOracle(address(this)),
+      safetyCRatio: 1e27,
+      liquidationCRatio: 1e27
+    });
   }
 
-
-  function read() external returns(uint256){
+  function read() external returns (uint256) {
     return 1 ether;
   }
 }

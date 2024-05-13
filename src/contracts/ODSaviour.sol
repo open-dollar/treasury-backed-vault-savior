@@ -13,9 +13,9 @@ import {IODSaviour} from '../interfaces/IODSaviour.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
+import {Authorizable} from '@opendollar/contracts/utils/Authorizable.sol';
 import {Modifiable} from '@opendollar/contracts/utils/Modifiable.sol';
 import {ModifiablePerCollateral} from '@opendollar/contracts/utils/ModifiablePerCollateral.sol';
-import 'forge-std/console2.sol';
 
 /**
  * @notice Steps to save a safe using ODSaviour:
@@ -27,7 +27,7 @@ import 'forge-std/console2.sol';
  * 5. Safe in liquidation => auto call `LiquidationEngine.attemptSave` gets saviour from chosenSAFESaviour mapping
  * 6. Saviour => increases collateral `ODSaviour.saveSAFE`
  */
-contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSaviour {
+contract ODSaviour is AccessControl, Authorizable, Modifiable, ModifiablePerCollateral, IODSaviour {
   using Math for uint256;
   using Assertions for address;
 
@@ -53,7 +53,7 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
   /**
    * @param _init The SaviourInit struct;
    */
-  constructor(SaviourInit memory _init) {
+  constructor(SaviourInit memory _init) Authorizable(msg.sender) {
     saviourTreasury = _init.saviourTreasury.assertNonNull();
     protocolGovernor = _init.protocolGovernor.assertNonNull();
     vault721 = IVault721(_init.vault721.assertNonNull());
@@ -113,7 +113,6 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
     bytes32 _cType,
     address _safe
   ) external onlyRole(PROTOCOL) returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
-    if (liquidationEngine != _liquidator) revert OnlyLiquidationEngine();
     uint256 _vaultId = safeManager.safeHandlerToSafeId(_safe);
     if (_vaultId == 0) {
       _collateralAdded = type(uint256).max;
@@ -121,7 +120,7 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
       _ok = true;
       return (_ok, _collateralAdded, _liquidatorReward);
     }
-    console2.log('attempting save');
+
     if (!_enabledVaults[_vaultId]) revert VaultNotAllowed(_vaultId);
 
     IOracleRelayer.OracleRelayerCollateralParams memory _oracleParams = oracleRelayer.cParams(_cType);
@@ -130,8 +129,7 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
     uint256 _reqCollateral;
     {
       (uint256 _currCollateral, uint256 _currDebt) = getCurrentCollateralAndDebt(_cType, _safe);
-      console2.log('curr coll', _currCollateral);
-      console2.log('curr debt', _currDebt);
+
       uint256 _accumulatedRate = safeEngine.cData(_cType).accumulatedRate;
       uint256 _currCRatio = ((_currCollateral.wmul(_oracle.read())).wdiv(_currDebt.wmul(_accumulatedRate)));
       uint256 _safetyCRatio = _oracleParams.safetyCRatio / 1e18;
@@ -149,6 +147,7 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
 
     if (_saviourTokenAddresses[_cType].balanceOf(address(this)) >= _reqCollateral) {
       address _collateralJoin = collateralJoinFactory.collateralJoins(_cType);
+      _saviourTokenAddresses[_cType].approve(_collateralJoin, _reqCollateral);
       ICollateralJoin(_collateralJoin).join(_safe, _reqCollateral);
       _collateralAdded = _reqCollateral;
       _liquidatorReward = liquidatorReward;
@@ -169,4 +168,13 @@ contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSav
     _currCollateral = _safeEngineData.lockedCollateral;
     _currDebt = _safeEngineData.generatedDebt;
   }
+
+  function _initializeCollateralType(bytes32 _cType, bytes memory _collateralParams) internal virtual override {
+    address saviourTokenAddress = abi.decode(_collateralParams, (address));
+    _saviourTokenAddresses[_cType] = IERC20(saviourTokenAddress);
+  }
+
+  function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {}
+
+  function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {}
 }
