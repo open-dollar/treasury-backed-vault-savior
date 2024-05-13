@@ -13,6 +13,8 @@ import {IODSaviour} from '../interfaces/IODSaviour.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
+import {Modifiable} from '@opendollar/contracts/utils/Modifiable.sol';
+import {ModifiablePerCollateral} from '@opendollar/contracts/utils/ModifiablePerCollateral.sol';
 import 'forge-std/console2.sol';
 
 /**
@@ -25,7 +27,7 @@ import 'forge-std/console2.sol';
  * 5. Safe in liquidation => auto call `LiquidationEngine.attemptSave` gets saviour from chosenSAFESaviour mapping
  * 6. Saviour => increases collateral `ODSaviour.saveSAFE`
  */
-contract ODSaviour is AccessControl, IODSaviour {
+contract ODSaviour is AccessControl, Modifiable, ModifiablePerCollateral, IODSaviour {
   using Math for uint256;
   using Assertions for address;
 

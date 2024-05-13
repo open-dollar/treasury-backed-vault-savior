@@ -14,6 +14,7 @@ interface IODSaviour is ISAFESaviour {
   error VaultNotAllowed(uint256 _vaultId);
   error CollateralTransferFailed();
   error OnlyLiquidationEngine();
+  error SafetyRatioMet();
 
   /**
    * @notice SaviourInit struct
