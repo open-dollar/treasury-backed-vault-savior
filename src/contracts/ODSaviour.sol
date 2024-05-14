@@ -170,6 +170,8 @@ contract ODSaviour is AccessControl, Authorizable, Modifiable, ModifiablePerColl
   function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {
     if (_param == 'setVaultStatus') {
       (uint256 vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
+      bytes32 collateralType = safeManager.safeData(vaultId).collateralType;
+      if(address(_saviourTokenAddresses[collateralType]) == address(0))revert UninitializedCollateral(collateralType);
       _enabledVaults[vaultId] = enabled;
     } else if (_param == 'addCollateralType') {
       (bytes32 _cType, address tokenAddress) = abi.decode(_data, (bytes32, address));

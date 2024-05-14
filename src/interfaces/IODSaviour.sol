@@ -17,6 +17,7 @@ interface IODSaviour is ISAFESaviour {
   error OnlyLiquidationEngine();
   error SafetyRatioMet();
   error AlreadyInitialized(bytes32);
+  error UninitializedCollateral(bytes32);
 
   /**
    * @notice SaviourInit struct
