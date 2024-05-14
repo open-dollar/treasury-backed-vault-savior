@@ -28,6 +28,7 @@ interface IODSaviour is ISAFESaviour {
    *   @param cTypes an array of collateral types that can be used in this saviour (bytes32('ARB'));
    *   @param saviourTokens the addresses of the saviour tokens to be used in this contract;
    */
+
   struct SaviourInit {
     address vault721;
     address oracleRelayer;

@@ -4,6 +4,7 @@ pragma solidity 0.8.20;
 import {AccessControl, IAccessControl} from '@openzeppelin/access/AccessControl.sol';
 import {IERC20} from '@openzeppelin/token/ERC20/IERC20.sol';
 import {ODProxy} from '@opendollar/contracts/proxies/ODProxy.sol';
+import {IODSafeManager} from '@opendollar/interfaces/proxies/IODSafeManager.sol';
 import {ISAFEEngine} from '@opendollar/interfaces/ISAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
@@ -32,28 +33,24 @@ contract E2ESaviourSetup is Common {
     super.setUp();
     treasury = vm.addr(uint256(keccak256('ARB Treasury')));
 
-    IODSaviour.SaviourInit memory _init = _initSaviour(treasury);
+    IODSaviour.SaviourInit memory _init = _initSaviour();
     saviour = new ODSaviour(_init);
+    saviour.addAuthorization(treasury);
+    uint256 len = collateralTypes.length;
+    for (uint256 i; i < len; i++) {
+      saviour.initializeCollateralType(collateralTypes[i], abi.encode(address(collateral[collateralTypes[i]])));
+    }
+    saviour.modifyParameters('saviourTreasury', abi.encode(treasury));
 
     _mintTKN(treasury, TREASURY_AMOUNT, address(saviour));
     aliceProxy = _userSetup(vm.addr(uint256(keccak256('Alice'))), USER_AMOUNT, 'AliceProxy');
     bobProxy = _userSetup(vm.addr(uint256(keccak256('Bob'))), USER_AMOUNT, 'BobProxy');
   }
 
-  function _initSaviour(address _saviourTreasury) internal view returns (IODSaviour.SaviourInit memory _init) {
-    uint256 len = collateralTypes.length;
-    address[] memory tokens = new address[](len);
-    for (uint256 i = 0; i < len; i++) {
-      tokens[i] = address(collateral[collateralTypes[i]]);
-    }
-    _init.saviourTreasury = _saviourTreasury;
-    _init.protocolGovernor = address(timelockController);
+  function _initSaviour() internal view returns (IODSaviour.SaviourInit memory _init) {
     _init.vault721 = address(vault721);
     _init.oracleRelayer = address(oracleRelayer);
     _init.collateralJoinFactory = address(collateralJoinFactory);
-    _init.cTypes = collateralTypes;
-    _init.saviourTokens = tokens;
-    _init.liquidatorReward = 0;
   }
 
   function _userSetup(address _user, uint256 _amount, string memory _name) internal returns (address _proxy) {
@@ -90,7 +87,6 @@ contract E2ESaviourTestSetup is E2ESaviourSetup {
 
   function test_Addresses() public view {
     assertEq(saviour.saviourTreasury(), treasury);
-    assertEq(saviour.protocolGovernor(), address(timelockController));
     assertEq(saviour.liquidationEngine(), address(liquidationEngine));
   }
 
@@ -104,15 +100,14 @@ contract E2ESaviourTestSetup is E2ESaviourSetup {
 }
 
 contract E2ESaviourTestAccessControl is E2ESaviourSetup {
-  function test_Roles() public view {
-    assertTrue(IAccessControl(saviour).hasRole(saviour.SAVIOUR_TREASURY(), treasury));
-    assertTrue(IAccessControl(saviour).hasRole(saviour.PROTOCOL(), address(timelockController)));
-    assertTrue(IAccessControl(saviour).hasRole(saviour.PROTOCOL(), address(liquidationEngine)));
-  }
-
   function test_AddCType(bytes32 _cType, address _tokenAddress) public {
+    uint256 len = collateralTypes.length;
+    for (uint256 i; i < len; i++) {
+      vm.assume(_cType != collateralTypes[i]);
+    }
+
     vm.startPrank(treasury);
-    saviour.addCType(_cType, _tokenAddress);
+    saviour.initializeCollateralType(_cType, abi.encode(_tokenAddress));
     assertTrue(saviour.cType(_cType) == _tokenAddress);
   }
 
@@ -120,29 +115,38 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
     vm.assume(_attacker != treasury);
     vm.startPrank(_attacker);
     vm.expectRevert();
-    saviour.addCType(_cType, _tokenAddress);
+    saviour.initializeCollateralType(_cType, abi.encode(_tokenAddress));
   }
 
   function test_setLiquidatorReward(uint256 _rewardA, uint256 _rewardB) public {
-    vm.prank(address(timelockController));
-    saviour.setLiquidatorReward(_rewardA);
+    vm.prank(address(treasury));
+    saviour.modifyParameters('liquidatorReward', abi.encode(_rewardA));
     assertTrue(saviour.liquidatorReward() == _rewardA);
-
-    vm.prank(address(liquidationEngine));
-    saviour.setLiquidatorReward(_rewardB);
-    assertTrue(saviour.liquidatorReward() == _rewardB);
   }
 
   function test_setLiquidatorRewardRevert(address _attacker, uint256 _reward) public {
-    vm.assume(_attacker != address(timelockController) && _attacker != address(liquidationEngine));
+    vm.assume(_attacker != address(treasury) && _attacker != address(liquidationEngine));
     vm.startPrank(_attacker);
     vm.expectRevert();
-    saviour.setLiquidatorReward(_reward);
+    saviour.modifyParameters('liquidatorReward', abi.encode(_reward));
   }
 
   function test_SetVaultStatus(uint256 _vaultId, bool _enabled) public {
     vm.startPrank(treasury);
-    saviour.setVaultStatus(_vaultId, _enabled);
+    vm.mockCall(
+      address(safeManager),
+      abi.encodeWithSelector(IODSafeManager.safeData.selector, _vaultId),
+      abi.encode(
+        IODSafeManager.SAFEData({
+          nonce: 0,
+          owner: address(1),
+          safeHandler: address(2),
+          collateralType: collateralTypes[0]
+        })
+      )
+    );
+    saviour.modifyParameters('setVaultStatus', abi.encode(_vaultId, _enabled));
+
     assertTrue(saviour.isEnabled(_vaultId) == _enabled);
   }
 
@@ -150,7 +154,37 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
     vm.assume(_attacker != treasury);
     vm.startPrank(_attacker);
     vm.expectRevert();
-    saviour.setVaultStatus(_vaultId, _enabled);
+    vm.mockCall(
+      address(safeManager),
+      abi.encodeWithSelector(IODSafeManager.safeData.selector, _vaultId),
+      abi.encode(
+        IODSafeManager.SAFEData({
+          nonce: 0,
+          owner: address(1),
+          safeHandler: address(2),
+          collateralType: collateralTypes[0]
+        })
+      )
+    );
+    saviour.modifyParameters('setVaultStatus', abi.encode(_vaultId, _enabled));
+  }
+
+  function test_SetVaultStatusRevert_UninitializedCollateral(uint256 _vaultId, bool _enabled) public {
+    vm.startPrank(treasury);
+    vm.expectRevert();
+    vm.mockCall(
+      address(safeManager),
+      abi.encodeWithSelector(IODSafeManager.safeData.selector, _vaultId),
+      abi.encode(
+        IODSafeManager.SAFEData({
+          nonce: 0,
+          owner: address(1),
+          safeHandler: address(2),
+          collateralType: bytes32(abi.encodePacked('randomToken'))
+        })
+      )
+    );
+    saviour.modifyParameters('setVaultStatus', abi.encode(_vaultId, _enabled));
   }
 
   function test_SaveSafe(bytes32 _cType, address _safe) public {
@@ -159,23 +193,14 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
   }
 
   function test_SaveSafeRevert(bytes32 _cType, address _safe) public {
+    vm.assume(_safe != address(0));
     vm.prank(address(timelockController));
     vm.expectRevert();
     saviour.saveSAFE(address(timelockController), _cType, _safe);
   }
 
-  function test_SaveSafeRevert(address _liquidator, bytes32 _cType, address _safe) public {
-    vm.assume(_liquidator != address(timelockController) && _liquidator != address(liquidationEngine));
-    vm.prank(address(timelockController));
-    vm.expectRevert();
-    saviour.saveSAFE(_liquidator, _cType, _safe);
-
-    vm.prank(address(liquidationEngine));
-    vm.expectRevert();
-    saviour.saveSAFE(_liquidator, _cType, _safe);
-  }
-
   function test_SaveSafeRevert(address _attacker, address _liquidator, bytes32 _cType, address _safe) public {
+    vm.assume(_safe != address(0));
     vm.assume(
       _attacker != address(timelockController) && _attacker != address(liquidationEngine) && _attacker != _liquidator
     );
