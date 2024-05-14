@@ -66,40 +66,23 @@ contract ODSaviour is AccessControl, Authorizable, Modifiable, ModifiablePerColl
 
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
 
+    _setupRole(SAVIOUR_TREASURY, saviourTreasury);
+    _addAuthorization(saviourTreasury);
+    _setupRole(PROTOCOL, protocolGovernor);
+    _addAuthorization(protocolGovernor);
+    _setupRole(PROTOCOL, liquidationEngine);
     // solhint-disable-next-line  defi-wonderland/non-state-vars-leading-underscore
     for (uint256 i; i < _init.cTypes.length; i++) {
-      _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
+      initializeCollateralType(_init.cTypes[i], abi.encode(_init.saviourTokens[i].assertNonNull()));
     }
-    _setupRole(SAVIOUR_TREASURY, saviourTreasury);
-    _setupRole(PROTOCOL, protocolGovernor);
-    _setupRole(PROTOCOL, liquidationEngine);
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled) {
     _enabled = _enabledVaults[_vaultId];
   }
 
-  function addCType(bytes32 _cType, address _tokenAddress) external onlyRole(SAVIOUR_TREASURY) {
-    _saviourTokenAddresses[_cType] = IERC20(_tokenAddress);
-    emit CollateralTypeAdded(_cType, _tokenAddress);
-  }
-
   function cType(bytes32 _cType) public view returns (address _tokenAddress) {
     return address(_saviourTokenAddresses[_cType]);
-  }
-
-  function setLiquidatorReward(uint256 _newReward) external onlyRole(PROTOCOL) {
-    liquidatorReward = _newReward;
-    emit LiquidatorRewardSet(_newReward);
-  }
-
-  /**
-   * @dev
-   */
-  function setVaultStatus(uint256 _vaultId, bool _enabled) external onlyRole(SAVIOUR_TREASURY) {
-    _enabledVaults[_vaultId] = _enabled;
-
-    emit VaultStatusSet(_vaultId, _enabled);
   }
 
   /**
@@ -170,11 +153,32 @@ contract ODSaviour is AccessControl, Authorizable, Modifiable, ModifiablePerColl
   }
 
   function _initializeCollateralType(bytes32 _cType, bytes memory _collateralParams) internal virtual override {
+    if (address(_saviourTokenAddresses[_cType]) != address(0)) revert AlreadyInitialized(_cType);
     address saviourTokenAddress = abi.decode(_collateralParams, (address));
     _saviourTokenAddresses[_cType] = IERC20(saviourTokenAddress);
   }
 
-  function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {}
+  function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {
+    if (_param == 'saviourToken') {
+      address newToken = abi.decode(_data, (address));
+      _saviourTokenAddresses[_cType] = IERC20(newToken);
+    } else {
+      revert UnrecognizedParam();
+    }
+  }
 
-  function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {}
+  function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {
+    if (_param == 'setVaultStatus') {
+      (uint256 vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
+      _enabledVaults[vaultId] = enabled;
+    } else if (_param == 'addCollateralType') {
+      (bytes32 _cType, address tokenAddress) = abi.decode(_data, (bytes32, address));
+      _saviourTokenAddresses[_cType] = IERC20(tokenAddress);
+    } else if (_param == 'setLiquidatorReward') {
+      uint256 _liquidatorReward = abi.decode(_data, (uint256));
+      liquidatorReward = _liquidatorReward;
+    } else {
+      revert UnrecognizedParam();
+    }
+  }
 }
