@@ -13,6 +13,10 @@ import {IODSaviour} from '../interfaces/IODSaviour.sol';
 import {ODSafeManager, IODSafeManager} from '@opendollar/contracts/proxies/ODSafeManager.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
+import {Authorizable} from '@opendollar/contracts/utils/Authorizable.sol';
+import {Modifiable} from '@opendollar/contracts/utils/Modifiable.sol';
+import {ModifiablePerCollateral} from '@opendollar/contracts/utils/ModifiablePerCollateral.sol';
+
 import 'forge-std/console2.sol';
 
 /**
@@ -25,7 +29,7 @@ import 'forge-std/console2.sol';
  * 5. Safe in liquidation => auto call `LiquidationEngine.attemptSave` gets saviour from chosenSAFESaviour mapping
  * 6. Saviour => increases collateral `ODSaviour.saveSAFE`
  */
-contract ODSaviour is AccessControl, IODSaviour {
+contract ODSaviour is AccessControl, Authorizable, Modifiable, ModifiablePerCollateral, IODSaviour {
   using Math for uint256;
   using Assertions for address;
 
@@ -51,7 +55,7 @@ contract ODSaviour is AccessControl, IODSaviour {
   /**
    * @param _init The SaviourInit struct;
    */
-  constructor(SaviourInit memory _init) {
+  constructor(SaviourInit memory _init) Authorizable(msg.sender) {
     saviourTreasury = _init.saviourTreasury.assertNonNull();
     protocolGovernor = _init.protocolGovernor.assertNonNull();
     vault721 = IVault721(_init.vault721.assertNonNull());
@@ -64,41 +68,24 @@ contract ODSaviour is AccessControl, IODSaviour {
 
     if (_init.saviourTokens.length != _init.cTypes.length) revert LengthMismatch();
 
-    // solhint-disable-next-line  defi-wonderland/non-state-vars-leading-underscore
-    for (uint256 i; i < _init.cTypes.length; i++) {
-      _saviourTokenAddresses[_init.cTypes[i]] = IERC20(_init.saviourTokens[i].assertNonNull());
-    }
     _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     _grantRole(SAVIOUR_TREASURY, saviourTreasury);
+    _addAuthorization(saviourTreasury);
     _grantRole(PROTOCOL, protocolGovernor);
+    _addAuthorization(protocolGovernor);
     _grantRole(PROTOCOL, liquidationEngine);
+    // solhint-disable-next-line  defi-wonderland/non-state-vars-leading-underscore
+    for (uint256 i; i < _init.cTypes.length; i++) {
+      initializeCollateralType(_init.cTypes[i], abi.encode(_init.saviourTokens[i].assertNonNull()));
+    }
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled) {
     _enabled = _enabledVaults[_vaultId];
   }
 
-  function addCType(bytes32 _cType, address _tokenAddress) external onlyRole(SAVIOUR_TREASURY) {
-    _saviourTokenAddresses[_cType] = IERC20(_tokenAddress);
-    emit CollateralTypeAdded(_cType, _tokenAddress);
-  }
-
   function cType(bytes32 _cType) public view returns (address _tokenAddress) {
     return address(_saviourTokenAddresses[_cType]);
-  }
-
-  function setLiquidatorReward(uint256 _newReward) external onlyRole(PROTOCOL) {
-    liquidatorReward = _newReward;
-    emit LiquidatorRewardSet(_newReward);
-  }
-
-  /**
-   * @dev
-   */
-  function setVaultStatus(uint256 _vaultId, bool _enabled) external onlyRole(SAVIOUR_TREASURY) {
-    _enabledVaults[_vaultId] = _enabled;
-
-    emit VaultStatusSet(_vaultId, _enabled);
   }
 
   /**
@@ -146,6 +133,7 @@ contract ODSaviour is AccessControl, IODSaviour {
 
     if (_saviourTokenAddresses[_cType].balanceOf(address(this)) >= _reqCollateral) {
       address _collateralJoin = collateralJoinFactory.collateralJoins(_cType);
+      _saviourTokenAddresses[_cType].approve(_collateralJoin, _reqCollateral);
       ICollateralJoin(_collateralJoin).join(_safe, _reqCollateral);
       _collateralAdded = _reqCollateral;
       _liquidatorReward = liquidatorReward;
@@ -165,5 +153,35 @@ contract ODSaviour is AccessControl, IODSaviour {
     ISAFEEngine.SAFE memory _safeEngineData = safeEngine.safes(_cType, _safe);
     _currCollateral = _safeEngineData.lockedCollateral;
     _currDebt = _safeEngineData.generatedDebt;
+  }
+
+  function _initializeCollateralType(bytes32 _cType, bytes memory _collateralParams) internal virtual override {
+    if (address(_saviourTokenAddresses[_cType]) != address(0)) revert AlreadyInitialized(_cType);
+    address saviourTokenAddress = abi.decode(_collateralParams, (address));
+    _saviourTokenAddresses[_cType] = IERC20(saviourTokenAddress);
+  }
+
+  function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {
+    if (_param == 'saviourToken') {
+      if(address(_saviourTokenAddresses[_cType]) == address(0)) revert CollateralMustBeInitialized(_cType);
+      address newToken = abi.decode(_data, (address));
+      _saviourTokenAddresses[_cType] = IERC20(newToken);
+    } else {
+      revert UnrecognizedParam();
+    }
+  }
+
+  function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {
+    if (_param == 'setVaultStatus') {
+      (uint256 vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
+      bytes32 collateralType = safeManager.safeData(vaultId).collateralType;
+      if(address(_saviourTokenAddresses[collateralType]) == address(0))revert UninitializedCollateral(collateralType);
+      _enabledVaults[vaultId] = enabled;
+    } else if (_param == 'setLiquidatorReward') {
+      uint256 _liquidatorReward = abi.decode(_data, (uint256));
+      liquidatorReward = _liquidatorReward;
+    } else {
+      revert UnrecognizedParam();
+    }
   }
 }
