@@ -11,6 +11,7 @@ import {IODSaviour} from '../src/interfaces/IODSaviour.sol';
 import {SetUp} from './SetUp.sol';
 import {ISAFEEngine} from './SetUp.sol';
 import {OracleRelayerForTest} from './mock-contracts/OracleRelayerForTest.sol';
+import {IModifiablePerCollateral} from '@opendollar/interfaces/utils/IModifiablePerCollateral.sol';
 
 contract ODSaviourSetUp is SetUp {
   ODSaviour public saviour;
@@ -109,6 +110,66 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
 
   function test_Set_SaviourTokens() public view {
     assertEq(saviour.cType(ARB), address(collateralToken));
+  }
+}
+
+contract UnitODSaviourModifyParameters is ODSaviourSetUp {
+  function test_ModifyParameters_SetVaultStatus() public {
+    vm.prank(aliceProxy);
+    uint256 safeId = safeManager.openSAFE(ARB, aliceProxy);
+    vm.startPrank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
+    assertTrue(saviour.isEnabled(safeId));
+    saviour.modifyParameters('setVaultStatus', abi.encode(safeId, false));
+    assertFalse(saviour.isEnabled(safeId));
+  }
+
+  function test_ModifyParameters_SetVaultStatus_Revert() public {
+    uint256 safeId = 3;
+    vm.prank(saviourTreasury);
+    vm.expectRevert(abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(0)));
+    saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
+    assertFalse(saviour.isEnabled(safeId));
+  }
+
+  function test_ModifyParameters_liquidatorReward() public {
+    vm.startPrank(saviourTreasury);
+    saviour.modifyParameters('liquidatorReward', abi.encode(10 ether));
+    assertEq(saviour.liquidatorReward(), 10 ether);
+  }
+
+  function test_ModifyParameters_saviourTreasury() public {
+    vm.startPrank(saviourTreasury);
+    saviour.modifyParameters('saviourTreasury', abi.encode(address(2)));
+    assertEq(saviour.saviourTreasury(), address(2));
+  }
+}
+
+contract UnitODSaviourModifiablePerCollateral is ODSaviourSetUp {
+  function test_ModifyParameters_PerCollateral_SaviourToken() public {
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters(ARB, 'saviourToken', abi.encode(address(1)));
+    assertEq(address(saviour.cType(ARB)), address(1));
+  }
+
+  function test_ModifyParameters_PerCollateral_SaviourToken_Revert_MustBeInitialized() public {
+    vm.prank(saviourTreasury);
+    vm.expectRevert(
+      abi.encodeWithSelector(IODSaviour.CollateralMustBeInitialized.selector, bytes32(abi.encodePacked('BOO')))
+    );
+    saviour.modifyParameters('BOO', 'saviourToken', abi.encode(address(1)));
+  }
+
+  function test__initializeCollateralType() public {
+    vm.prank(saviourTreasury);
+    saviour.initializeCollateralType('BOO', abi.encode(address(1)));
+    assertEq(address(saviour.cType('BOO')), address(1));
+  }
+
+  function test__initializeCollateralType_Revert_AlreadyInitialized() public {
+    vm.prank(saviourTreasury);
+    vm.expectRevert(abi.encodeWithSelector(IModifiablePerCollateral.CollateralTypeAlreadyInitialized.selector));
+    saviour.initializeCollateralType(ARB, abi.encode(address(1)));
   }
 }
 
@@ -249,17 +310,16 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
       abi.encode(
         ISAFEEngine.SAFEEngineCollateralData({
-          debtAmount: 11 ether,
+          debtAmount: 10 ether,
           lockedAmount: 10 ether,
-          accumulatedRate: _rad(1000),
-          safetyPrice: _ray(1),
-          liquidationPrice: _ray(1)
+          accumulatedRate: _rad(100),
+          safetyPrice: _ray(1 ether),
+          liquidationPrice: _ray(1 ether)
         })
       )
     );
-    // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
-    vm.expectEmit(true, false, false, false);
-    emit SafeSaved(vaultId, 990 ether);
+    vm.expectEmit(true, true, false, true);
+    emit SafeSaved(vaultId, 90 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 
