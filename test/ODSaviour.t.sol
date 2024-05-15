@@ -12,7 +12,6 @@ import {SetUp} from './SetUp.sol';
 import {ISAFEEngine} from './SetUp.sol';
 import {OracleRelayerForTest} from './mock-contracts/OracleRelayerForTest.sol';
 
-
 contract ODSaviourSetUp is SetUp {
   ODSaviour public saviour;
   address public saviourTreasury = _mockContract('saviourTreasury');
@@ -140,10 +139,20 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     vm.prank(saviourTreasury);
     saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
 
-    collateralToken.mint(saviourTreasury, 10_000_000_000_000_000_000_000_000 ether);
+    collateralToken.mint(saviourTreasury, 1000 ether);
     vm.prank(saviourTreasury);
     collateralToken.approve(address(saviour), type(uint256).max);
   }
+
+  event Liquidate(
+    bytes32 indexed _cType,
+    address indexed _safe,
+    uint256 _collateralAmount,
+    uint256 _debtAmount,
+    uint256 _amountToRaise,
+    address _collateralAuctioneer,
+    uint256 _auctionId
+  );
 
   function testLiquidateSafe() public {
     // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
@@ -175,17 +184,38 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
       abi.encode(
         ISAFEEngine.SAFEEngineCollateralData({
-          debtAmount: 1_000_000_000_000_000_000,
-          lockedAmount: 10_000_000_000_000_000_000,
+          debtAmount: 10 ether,
+          lockedAmount: 10 ether,
           accumulatedRate: _rad(1000),
-          safetyPrice: 1_000_000_000_000_000_000_000_000_000,
-          liquidationPrice: _rad(1)
+          safetyPrice: _ray(1),
+          liquidationPrice: _ray(1)
         })
       )
     );
+    //     struct SAFEEngineCollateralData {
+    //   // Total amount of debt issued by the collateral type
+    //   uint256 /* WAD */ debtAmount;
+    //   // Total amount of collateral locked in SAFEs using the collateral type
+    //   uint256 /* WAD */ lockedAmount;
+    //   // Accumulated rate of the collateral type
+    //   uint256 /* RAY */ accumulatedRate;
+    //   // Floor price at which a SAFE is allowed to generate debt
+    //   uint256 /* RAY */ safetyPrice;
+    //   // Price at which a SAFE gets liquidated
+    //   uint256 /* RAY */ liquidationPrice;
+    // }
+
     // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
-    vm.expectEmit(true, false, false, false);
-    emit SafeSaved(vaultId, 1 ether);
+    vm.expectEmit();
+    emit Liquidate(
+      0x4152420000000000000000000000000000000000000000000000000000000000,
+      0x8e395224D77551f0aB8C558962240DAfE755bd36,
+      10_000_000_000_000_000,
+      1_000_000_000_000_000,
+      1_000_000_000_000_000_000_000_000_000,
+      0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f,
+      123_456
+    );
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 
@@ -219,17 +249,17 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
       abi.encode(
         ISAFEEngine.SAFEEngineCollateralData({
-          debtAmount: 1_000_000_000_000_000_000,
-          lockedAmount: 10_000_000_000_000_000_000,
+          debtAmount: 11 ether,
+          lockedAmount: 10 ether,
           accumulatedRate: _rad(1000),
-          safetyPrice: 1_000_000_000_000_000_000_000_000_000,
-          liquidationPrice: _rad(1)
+          safetyPrice: _ray(1),
+          liquidationPrice: _ray(1)
         })
       )
     );
     // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
     vm.expectEmit(true, false, false, false);
-    emit SafeSaved(vaultId, 1 ether);
+    emit SafeSaved(vaultId, 990 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 

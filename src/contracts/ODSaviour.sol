@@ -16,8 +16,6 @@ import {Authorizable} from '@opendollar/contracts/utils/Authorizable.sol';
 import {Modifiable} from '@opendollar/contracts/utils/Modifiable.sol';
 import {ModifiablePerCollateral} from '@opendollar/contracts/utils/ModifiablePerCollateral.sol';
 
-
-
 /**
  * @notice Steps to save a safe using ODSaviour:
  *
