@@ -58,6 +58,8 @@ contract ODSaviourSetUp is SetUp {
     liquidationEngine.connectSAFESaviour(address(saviour));
 
     vm.stopPrank();
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
   }
 }
 
@@ -247,9 +249,9 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
         ISAFEEngine.SAFEEngineCollateralData({
           debtAmount: 10 ether,
           lockedAmount: 10 ether,
-          accumulatedRate: _rad(1000),
-          safetyPrice: _ray(1),
-          liquidationPrice: _ray(1)
+          accumulatedRate: _rad(100_000),
+          safetyPrice: _ray(1 ether),
+          liquidationPrice: _ray(1 ether)
         })
       )
     );
@@ -271,8 +273,8 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     emit Liquidate(
       0x4152420000000000000000000000000000000000000000000000000000000000,
       0x8e395224D77551f0aB8C558962240DAfE755bd36,
-      10_000_000_000_000_000,
-      1_000_000_000_000_000,
+      100_000_000_000_000,
+      10_000_000_000_000,
       1_000_000_000_000_000_000_000_000_000,
       0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f,
       123_456
@@ -321,8 +323,10 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     vm.expectEmit(true, true, false, true);
     emit SafeSaved(vaultId, 90 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 100 ether);
   }
-
+  // 9900000000000000000
+  // 99000000000000000000
   /// test that safe is liquidated without saviour
 
   /// using same conditions that created successful liquidation, add saviour to test liquidation averted

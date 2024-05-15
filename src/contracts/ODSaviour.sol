@@ -114,6 +114,7 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
       address _collateralJoin = collateralJoinFactory.collateralJoins(_cType);
       _saviourTokenAddresses[_cType].approve(_collateralJoin, _reqCollateral);
       ICollateralJoin(_collateralJoin).join(_safe, _reqCollateral);
+      safeManager.modifySAFECollateralization(_vaultId, int256(_reqCollateral), int256(0), false);
       _collateralAdded = _reqCollateral;
       _liquidatorReward = liquidatorReward;
 
