@@ -30,10 +30,6 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
   using Math for uint256;
   using Assertions for address;
 
-  // solhint-disable-next-line modifier-name-mixedcase
-  bytes32 public constant SAVIOUR_TREASURY = keccak256(abi.encode('SAVIOUR_TREASURY'));
-  bytes32 public constant PROTOCOL = keccak256(abi.encode('PROTOCOL'));
-
   uint256 public liquidatorReward;
   address public saviourTreasury;
   address public liquidationEngine;
@@ -67,12 +63,6 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     return address(_saviourTokenAddresses[_cType]);
   }
 
-  /**
-   * todo increase collateral to sufficient level
-   * 1. find out how much collateral is required to effectively save the safe
-   * 2. transfer the collateral to the vault, so the liquidation math will result in null liquidation
-   * 3. write tests
-   */
   function saveSAFE(
     address _liquidator,
     bytes32 _cType,
@@ -106,13 +96,12 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
         revert SafetyRatioMet();
       }
     }
+    IERC20 _token = _saviourTokenAddresses[_cType];
+    _token.transferFrom(saviourTreasury, address(this), _reqCollateral);
 
-    // transferFrom ARB Treasury amount of _reqCollateral
-    _saviourTokenAddresses[_cType].transferFrom(saviourTreasury, address(this), _reqCollateral);
-
-    if (_saviourTokenAddresses[_cType].balanceOf(address(this)) >= _reqCollateral) {
+    if (_token.balanceOf(address(this)) >= _reqCollateral) {
       address _collateralJoin = collateralJoinFactory.collateralJoins(_cType);
-      _saviourTokenAddresses[_cType].approve(_collateralJoin, _reqCollateral);
+      _token.approve(_collateralJoin, _reqCollateral);
       ICollateralJoin(_collateralJoin).join(_safe, _reqCollateral);
       safeManager.modifySAFECollateralization(_vaultId, int256(_reqCollateral), int256(0), false);
       _collateralAdded = _reqCollateral;
@@ -161,7 +150,11 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
       uint256 _liquidatorReward = abi.decode(_data, (uint256));
       liquidatorReward = _liquidatorReward;
     } else if (_param == 'saviourTreasury') {
+      if (saviourTreasury != address(0)) {
+        _removeAuthorization(saviourTreasury);
+      }
       saviourTreasury = abi.decode(_data, (address));
+      _addAuthorization(saviourTreasury);
     } else {
       revert UnrecognizedParam();
     }
