@@ -223,7 +223,7 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       accumulatedRate: _ray(10),
       debtFloor: 10_000,
       liquidationPrice: 30_000,
-      safeCollateral: 1 ether,
+      safeCollateral: 10 ether,
       safeDebt: 10 ether,
       onAuctionSystemCoinLimit: 100 ether,
       currentOnAuctionSystemCoins: 10 ether,
@@ -236,7 +236,7 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     collateralChild.join(safeHandler, 10 ether);
     vm.mockCall(taxCollector, abi.encodeWithSignature('taxSingle(bytes32)', ARB), abi.encode(0));
     safeManager.modifySAFECollateralization(
-      vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false
+      vaultId, int256(liquidation.safeCollateral), int256(liquidation.safeDebt), false
     );
     uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
     vm.stopPrank();
@@ -272,16 +272,16 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     emit Liquidate(
       0x4152420000000000000000000000000000000000000000000000000000000000,
       0x8e395224D77551f0aB8C558962240DAfE755bd36,
-      100_000_000_000_000,
-      10_000_000_000_000,
-      1_000_000_000_000_000_000_000_000_000,
+      10000000000000,
+      10000000000000,
+      1000000000000000000000000000,
       0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f,
       123_456
     );
     //attempts to save but the saviour doesn't have enough funds.
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
-    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 9.9999 ether);
-    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 0.99999 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 9.99999 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 9.99999 ether);
   }
 
   function test_SaveSafe() public {
@@ -290,7 +290,7 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       accumulatedRate: _ray(10),
       debtFloor: 10_000,
       liquidationPrice: 30_000,
-      safeCollateral: 1 ether,
+      safeCollateral: 10 ether,
       safeDebt: 10 ether,
       onAuctionSystemCoinLimit: 100 ether,
       currentOnAuctionSystemCoins: 10 ether,
@@ -303,7 +303,7 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     collateralChild.join(safeHandler, 10 ether);
     vm.mockCall(taxCollector, abi.encodeWithSignature('taxSingle(bytes32)', ARB), abi.encode(0));
     safeManager.modifySAFECollateralization(
-      vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false
+      vaultId, int256(liquidation.safeCollateral), int256(liquidation.safeDebt),false
     );
     uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
     vm.stopPrank();
@@ -323,10 +323,10 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       )
     );
     vm.expectEmit(true, true, false, true);
-    emit SafeSaved(vaultId, 90 ether);
+    emit SafeSaved(vaultId, 990 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
-    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 100 ether);
-    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 1 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 1000 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 10 ether);
   }
 
   /// test that safe is liquidated without saviour
