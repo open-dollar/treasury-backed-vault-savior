@@ -12,7 +12,8 @@ import {SetUp} from './SetUp.sol';
 import {ISAFEEngine} from './SetUp.sol';
 import {OracleRelayerForTest} from './mock-contracts/OracleRelayerForTest.sol';
 
-contract ODSaviour_SetUp is SetUp {
+
+contract ODSaviourSetUp is SetUp {
   ODSaviour public saviour;
   address public saviourTreasury = _mockContract('saviourTreasury');
   address public protocolGovernor = _mockContract('protocolGovernor');
@@ -31,18 +32,18 @@ contract ODSaviour_SetUp is SetUp {
     oracleRelayer = address(new OracleRelayerForTest());
 
     saviourInit = IODSaviour.SaviourInit({
-      saviourTreasury: saviourTreasury,
-      protocolGovernor: protocolGovernor,
       vault721: address(vault721),
       oracleRelayer: oracleRelayer,
-      collateralJoinFactory: address(collateralJoinFactory),
-      cTypes: _cTypes,
-      saviourTokens: _tokens,
-      liquidatorReward: 0
+      collateralJoinFactory: address(collateralJoinFactory)
     });
-
     saviour = new ODSaviour(saviourInit);
 
+    for (uint256 i; i < _cTypes.length; i++) {
+      saviour.initializeCollateralType(_cTypes[i], abi.encode(_tokens[i]));
+    }
+
+    saviour.modifyParameters('saviourTreasury', abi.encode(saviourTreasury));
+    saviour.addAuthorization(saviourTreasury);
     IOracleRelayer.OracleRelayerCollateralParams memory oracleCParams = IOracleRelayer.OracleRelayerCollateralParams({
       oracle: IDelayedOracle(address(1)),
       safetyCRatio: 1.25e27,
@@ -60,29 +61,9 @@ contract ODSaviour_SetUp is SetUp {
   }
 }
 
-contract Unit_ODSaviour_Deployment is ODSaviour_SetUp {
+contract UnitODSaviourDeployment is ODSaviourSetUp {
   function test_Set_LiquidationEngine() public view {
     assertEq(address(saviour.liquidationEngine()), address(liquidationEngine));
-  }
-
-  function test_Set_SaviourTreasury() public view {
-    assertEq(address(saviour.saviourTreasury()), address(saviourTreasury));
-  }
-
-  function test_Set_SaviourTreasury_RevertNullAddress() public {
-    saviourInit.saviourTreasury = address(0);
-    vm.expectRevert(Assertions.NullAddress.selector);
-    saviour = new ODSaviour(saviourInit);
-  }
-
-  function test_Set_ProtocolGovernor() public view {
-    assertEq(address(saviour.protocolGovernor()), address(protocolGovernor));
-  }
-
-  function test_Set_ProtocolGovernor_RevertNullAddress() public {
-    saviourInit.protocolGovernor = address(0);
-    vm.expectRevert(Assertions.NullAddress.selector);
-    saviour = new ODSaviour(saviourInit);
   }
 
   function test_Set_Vault721() public view {
@@ -130,28 +111,12 @@ contract Unit_ODSaviour_Deployment is ODSaviour_SetUp {
   function test_Set_SaviourTokens() public view {
     assertEq(saviour.cType(ARB), address(collateralToken));
   }
-
-  function test_Set_SaviourTokens_Revert_LengthMismatch() public {
-    bytes32[] memory _mismatchTypes = new bytes32[](2);
-    saviourInit.cTypes = _mismatchTypes;
-    vm.expectRevert(IODSaviour.LengthMismatch.selector);
-    saviour = new ODSaviour(saviourInit);
-  }
-
-  function test_Set_SaviourTokens_Revert_NullAddress() public {
-    address[] memory _nullToken = new address[](1);
-    _nullToken[0] = address(0);
-
-    saviourInit.saviourTokens = _nullToken;
-    vm.expectRevert(Assertions.NullAddress.selector);
-    saviour = new ODSaviour(saviourInit);
-  }
 }
 
-contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
+contract UnitODSaviourSaveSafe is ODSaviourSetUp {
   event SafeSaved(uint256 _vaultId, uint256 _reqCollateral);
 
-  address safeHandler;
+  address public safeHandler;
 
   struct Liquidation {
     uint256 accumulatedRate;
@@ -173,11 +138,55 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     vm.prank(aliceProxy);
     safeManager.protectSAFE(vaultId, address(saviour));
     vm.prank(saviourTreasury);
-    saviour.setVaultStatus(vaultId, true);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
 
     collateralToken.mint(saviourTreasury, 10_000_000_000_000_000_000_000_000 ether);
     vm.prank(saviourTreasury);
     collateralToken.approve(address(saviour), type(uint256).max);
+  }
+
+  function testLiquidateSafe() public {
+    // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
+    liquidation = Liquidation({
+      accumulatedRate: _ray(10),
+      debtFloor: 10_000,
+      liquidationPrice: 30_000,
+      safeCollateral: 1 ether,
+      safeDebt: 10 ether,
+      onAuctionSystemCoinLimit: 100 ether,
+      currentOnAuctionSystemCoins: 10 ether,
+      liquidationPenalty: 20_000,
+      liquidationQuantity: 1 ether
+    });
+    vm.startPrank(aliceProxy);
+    collateralToken.mint(100 ether);
+    collateralToken.approve(address(collateralChild), type(uint256).max);
+    collateralChild.join(safeHandler, 10 ether);
+    vm.mockCall(taxCollector, abi.encodeWithSignature('taxSingle(bytes32)', ARB), abi.encode(0));
+    safeManager.modifySAFECollateralization(
+      vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false
+    );
+    uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
+    vm.stopPrank();
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.mockCall(
+      address(safeEngine),
+      abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
+      abi.encode(
+        ISAFEEngine.SAFEEngineCollateralData({
+          debtAmount: 1_000_000_000_000_000_000,
+          lockedAmount: 10_000_000_000_000_000_000,
+          accumulatedRate: _rad(1000),
+          safetyPrice: 1_000_000_000_000_000_000_000_000_000,
+          liquidationPrice: _rad(1)
+        })
+      )
+    );
+    // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
+    vm.expectEmit(true, false, false, false);
+    emit SafeSaved(vaultId, 1 ether);
+    liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 
   function test_SaveSafe() public {
@@ -201,8 +210,10 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     safeManager.modifySAFECollateralization(
       vaultId, int256(liquidation.safeDebt), int256(liquidation.safeCollateral), false
     );
-
+    uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
     vm.stopPrank();
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
     vm.mockCall(
       address(safeEngine),
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
@@ -219,7 +230,6 @@ contract Unit_ODSaviour_SaveSafe is ODSaviour_SetUp {
     // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
     vm.expectEmit(true, false, false, false);
     emit SafeSaved(vaultId, 1 ether);
-
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
   }
 
