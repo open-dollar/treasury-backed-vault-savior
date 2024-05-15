@@ -268,7 +268,6 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     //   uint256 /* RAY */ liquidationPrice;
     // }
 
-    // vm.mockCall(mockCollateralAuctionHouse, abi.encodeWithSelector(CollateralAuctionHouseForTest, arg));
     vm.expectEmit();
     emit Liquidate(
       0x4152420000000000000000000000000000000000000000000000000000000000,
@@ -279,7 +278,10 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f,
       123_456
     );
+    //attempts to save but the saviour doesn't have enough funds.
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 9.9999 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 0.99999 ether);
   }
 
   function test_SaveSafe() public {
@@ -324,9 +326,9 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     emit SafeSaved(vaultId, 90 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
     assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 100 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 1 ether);
   }
-  // 9900000000000000000
-  // 99000000000000000000
+
   /// test that safe is liquidated without saviour
 
   /// using same conditions that created successful liquidation, add saviour to test liquidation averted
