@@ -205,6 +205,18 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     collateralToken.mint(saviourTreasury, 100 ether);
     vm.prank(saviourTreasury);
     collateralToken.approve(address(saviour), type(uint256).max);
+
+    liquidation = Liquidation({
+      accumulatedRate: _ray(10 ether),
+      debtFloor: 10_000,
+      liquidationPrice: _ray(2 ether), // orcale returns 1 ether as price
+      safeCollateral: 10 ether,
+      safeDebt: 10 ether,
+      onAuctionSystemCoinLimit: 100 ether,
+      currentOnAuctionSystemCoins: 10 ether,
+      liquidationPenalty: 20_000,
+      liquidationQuantity: 1 ether
+    });
   }
 
   event Liquidate(
@@ -218,19 +230,7 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
   );
 
   function testLiquidateSafe() public {
-    // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
-    liquidation = Liquidation({
-      accumulatedRate: _ray(10),
-      debtFloor: 10_000,
-      liquidationPrice: 30_000,
-      safeCollateral: 10 ether,
-      safeDebt: 10 ether,
-      onAuctionSystemCoinLimit: 100 ether,
-      currentOnAuctionSystemCoins: 10 ether,
-      liquidationPenalty: 20_000,
-      liquidationQuantity: 1 ether
-    });
-
+    liquidation.accumulatedRate = _rad(1 ether);
     vm.startPrank(aliceProxy);
     collateralToken.mint(100 ether);
     collateralToken.approve(address(collateralChild), type(uint256).max);
@@ -248,11 +248,11 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       abi.encodeWithSelector(ISAFEEngine.cData.selector, ARB),
       abi.encode(
         ISAFEEngine.SAFEEngineCollateralData({
-          debtAmount: 10 ether,
-          lockedAmount: 10 ether,
-          accumulatedRate: _rad(100_000),
+          debtAmount: liquidation.safeDebt,
+          lockedAmount: liquidation.safeCollateral,
+          accumulatedRate: liquidation.accumulatedRate,
           safetyPrice: _ray(1 ether),
-          liquidationPrice: _ray(1 ether)
+          liquidationPrice: liquidation.liquidationPrice
         })
       )
     );
@@ -273,33 +273,21 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     emit Liquidate(
       0x4152420000000000000000000000000000000000000000000000000000000000,
       0x8e395224D77551f0aB8C558962240DAfE755bd36,
-      10_000_000_000_000,
-      10_000_000_000_000,
+      1,
+      1,
       1_000_000_000_000_000_000_000_000_000,
       0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f,
       123_456
     );
     //attempts to save but the saviour doesn't have enough funds.
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
-    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 9.99999 ether);
-    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 9.99999 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, 9.999999999999999999 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 9.999999999999999999 ether);
   }
 
   function test_SaveSafe() public {
     uint256 startingSaviourBalance = collateralToken.balanceOf(saviourTreasury);
     assertEq(startingSaviourBalance, 100 ether);
-    liquidation = Liquidation({
-      accumulatedRate: _rad(10),
-      debtFloor: 10_000,
-      liquidationPrice: _ray(1.1 ether), // orcale returns 1 ether as price
-      safeCollateral: 10 ether,
-      safeDebt: 10 ether,
-      onAuctionSystemCoinLimit: 100 ether,
-      currentOnAuctionSystemCoins: 10 ether,
-      liquidationPenalty: 20_000,
-      liquidationQuantity: 1 ether
-    });
-
     vm.startPrank(aliceProxy);
     collateralToken.mint(10 ether);
     collateralToken.approve(address(collateralChild), type(uint256).max);
@@ -334,8 +322,8 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     emit SafeSaved(vaultId, 90 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
     assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, safeStartingCollateralBalance + 90 ether);
-    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, 10 ether);
-    assertEq(collateralToken.balanceOf(saviourTreasury), 10 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, liquidation.safeDebt);
+    assertEq(collateralToken.balanceOf(saviourTreasury), startingSaviourBalance - 90 ether);
   }
 
   /// test that safe is liquidated without saviour
