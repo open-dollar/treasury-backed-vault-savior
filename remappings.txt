@@ -1,8 +1,16 @@
 @openzeppelin/=node_modules/@openzeppelin/contracts/
 @openzeppelin-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/
 
+@defi-wonderland/solidity-utils/=node_modules/@defi-wonderland/solidity-utils/solidity/
+
 @opendollar/contracts/=node_modules/@opendollar/contracts/src/contracts/
 @opendollar/interfaces/=node_modules/@opendollar/contracts/src/interfaces/
+@opendollar/libraries/=node_modules/@opendollar/contracts/src/libraries/
+@opendollar/test/=node_modules/@opendollar/contracts/test/
+
+@console2/=forge-std/console2.sol;
+
+@defi-wonderland/solidity-utils/=node_modules/@defi-wonderland/solidity-utils/solidity/
 
 @script/=script/
 @contracts/=src/contracts/
