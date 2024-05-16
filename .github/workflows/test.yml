@@ -11,9 +11,52 @@ jobs:
       fail-fast: true
 
     name: Foundry project
+    runs-on: ubuntu-latestname: CI
+
+on: [push]
+
+concurrency:
+  group: ${{github.workflow}}-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Run Linters
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile --network-concurrency 1
+
+      - run: yarn lint:check
+
+  forge:
+    name: Run Unit and E2E Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -21,14 +64,26 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+          cache: true
 
-      - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
-        id: build
+      - name: Install forge dependencies
+        run: forge install
 
-      - name: Run Forge tests
+      - name: Install yarn dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build 
+        run: forge build
+
+      - name: "Create env file"
         run: |
-          forge test -vvv
-        id: test
+          touch .env
+          echo ARB_MAINNET_RPC="${{ secrets.ARB_MAINNET_RPC }}" >> .env
+          echo ARB_MAINNET_DEPLOYER_PK="${{ secrets.ARB_MAINNET_DEPLOYER_PK }}" >> .env
+          echo ARB_SEPOLIA_RPC="${{ secrets.ARB_SEPOLIA_RPC }}" >> .env
+          echo ARB_SEPOLIA_DEPLOYER_PK="${{ secrets.ARB_SEPOLIA_DEPLOYER_PK }}" >> .env
+          cat .env
+
+      - name: Run tests
+        shell: bash
+        run: yarn test
