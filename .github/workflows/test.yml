@@ -80,8 +80,6 @@ jobs:
           touch .env
           echo ARB_MAINNET_RPC="${{ secrets.ARB_MAINNET_RPC }}" >> .env
           echo ARB_MAINNET_DEPLOYER_PK="${{ secrets.ARB_MAINNET_DEPLOYER_PK }}" >> .env
-          echo ARB_SEPOLIA_RPC="${{ secrets.ARB_SEPOLIA_RPC }}" >> .env
-          echo ARB_SEPOLIA_DEPLOYER_PK="${{ secrets.ARB_SEPOLIA_DEPLOYER_PK }}" >> .env
           cat .env
 
       - name: Run tests
