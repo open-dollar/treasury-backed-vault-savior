@@ -80,11 +80,6 @@ contract E2ESaviourSetup is Common {
 }
 
 contract E2ESaviourTestSetup is E2ESaviourSetup {
-  function test_Constants() public view {
-    assertEq(saviour.SAVIOUR_TREASURY(), keccak256(abi.encode('SAVIOUR_TREASURY')));
-    assertEq(saviour.PROTOCOL(), keccak256(abi.encode('PROTOCOL')));
-  }
-
   function test_Addresses() public view {
     assertEq(saviour.saviourTreasury(), treasury);
     assertEq(saviour.liquidationEngine(), address(liquidationEngine));
