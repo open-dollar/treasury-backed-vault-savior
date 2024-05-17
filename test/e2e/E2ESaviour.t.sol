@@ -35,7 +35,7 @@ contract E2ESaviourSetup is Common {
 
     IODSaviour.SaviourInit memory _init = _initSaviour();
     saviour = new ODSaviour(_init);
-    saviour.addAuthorization(treasury);
+
     uint256 len = collateralTypes.length;
     for (uint256 i; i < len; i++) {
       saviour.initializeCollateralType(collateralTypes[i], abi.encode(address(collateral[collateralTypes[i]])));

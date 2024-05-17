@@ -43,7 +43,7 @@ contract ODSaviourSetUp is SetUp {
     }
 
     saviour.modifyParameters('saviourTreasury', abi.encode(saviourTreasury));
-    saviour.addAuthorization(saviourTreasury);
+
     IOracleRelayer.OracleRelayerCollateralParams memory oracleCParams = IOracleRelayer.OracleRelayerCollateralParams({
       oracle: IDelayedOracle(address(1)),
       safetyCRatio: 1.25e27,
