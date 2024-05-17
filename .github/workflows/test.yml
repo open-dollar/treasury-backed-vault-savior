@@ -11,7 +11,8 @@ jobs:
       fail-fast: true
 
     name: Foundry project
-    runs-on: ubuntu-latestname: CI
+    runs-on: ubuntu-latest
+    name: CI
 
 on: [push]
 
