@@ -3,6 +3,7 @@ pragma solidity 0.8.20;
 
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
+import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
 import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
 import {ODSaviour} from '../../src/contracts/ODSaviour.sol';
@@ -170,6 +171,29 @@ contract UnitODSaviourVaultSafteyCheck is ODSaviourSetUp {
       abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(abi.encodePacked('TKN')))
     );
     IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(newVaultId);
+  }
+}
+
+contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
+  function test_SaviourIsReady_True() public {
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    assertTrue(saviour.saviourIsReady(ARB));
+  }
+
+  function test_SaviourIsReady_False_NoAllowance() public view {
+    assertFalse(saviour.saviourIsReady(ARB));
+  }
+
+  function test_SaviourIsReady_False_NotAChosenSafe() public {
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.mockCall(
+      address(liquidationEngine),
+      abi.encodeWithSelector(ILiquidationEngine.safeSaviours.selector, address(saviour)),
+      abi.encode(0)
+    );
+    assertFalse(saviour.saviourIsReady(ARB));
   }
 }
 
