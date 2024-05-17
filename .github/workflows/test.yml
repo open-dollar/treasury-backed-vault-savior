@@ -12,7 +12,6 @@ jobs:
 
     name: Foundry project
     runs-on: ubuntu-latest
-    name: CI
 
 on: [push]
 
