@@ -86,12 +86,12 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
       (uint256 _currCollateral, uint256 _currDebt) = getCurrentCollateralAndDebt(_cType, _safe);
       uint256 _accumulatedRate = safeEngine.cData(_cType).accumulatedRate;
 
-      uint256 _currCRatio = ((_currCollateral.wmul(_oracle.read())).wdiv(_currDebt.wmul(_accumulatedRate)));
-      uint256 _safetyCRatio = _oracleParams.safetyCRatio / 1e18;
+      uint256 _currCRatio = ((_currCollateral.wmul(_oracle.read() * 1e18)).wdiv(_currDebt.wmul(_accumulatedRate)));
+      uint256 _safetyCRatio = _oracleParams.safetyCRatio;
 
       if (_safetyCRatio > _currCRatio) {
-        uint256 _diffCRatio = _safetyCRatio.wdiv(_currCRatio);
-        _reqCollateral = (_currCollateral.wmul(_diffCRatio)) - _currCollateral;
+        uint256 _diffCRatio = (_safetyCRatio - _currCRatio) / 1e9;
+        _reqCollateral = _currCollateral.wmul(_diffCRatio);
       } else {
         revert SafetyRatioMet();
       }
