@@ -58,8 +58,118 @@ contract ODSaviourSetUp is SetUp {
     liquidationEngine.connectSAFESaviour(address(saviour));
 
     vm.stopPrank();
+  }
+}
+
+contract UnitODSaviourVaultSafteyCheck is ODSaviourSetUp {
+  function setUp() public override {
+    super.setUp();
+
+    collateralToken.mint(saviourTreasury, 100 ether);
+  }
+
+  modifier happyPath() {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
     vm.prank(aliceProxy);
     safeManager.allowSAFE(vaultId, address(saviour), true);
+    _;
+  }
+
+  function test_VaultSafteyCheck_True() public happyPath {
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(vaultId);
+    assertTrue(saftey.saviourIsReady);
+  }
+  /**
+   * uint256 vaultId;
+   *   bool allowed;
+   *   bool enabled;
+   *   address vaultCtypeTokenAddress;
+   *   uint256 saviourAllowance;
+   *   bool safeProtected;
+   *   bool saviourIsReady;
+   */
+
+  function test_VaultSafteyCheck_False_NotAllowed() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(vaultId);
+
+    assertFalse(saftey.saviourIsReady);
+    assertFalse(saftey.allowed);
+    assertTrue(saftey.enabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertTrue(saftey.safeProtected);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultSafteyCheck_False_NoAllowance() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(vaultId);
+    assertFalse(saftey.saviourIsReady);
+    assertTrue(saftey.allowed);
+    assertTrue(saftey.enabled);
+    assertTrue(saftey.saviourAllowance == 0);
+    assertTrue(saftey.safeProtected);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultSafteyCheck_False_NotEnabled() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(vaultId);
+    assertFalse(saftey.saviourIsReady);
+    assertTrue(saftey.allowed);
+    assertFalse(saftey.enabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertTrue(saftey.safeProtected);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultSafteyCheck_False_NotProtected() public {
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(vaultId);
+    assertFalse(saftey.saviourIsReady);
+    assertTrue(saftey.allowed);
+    assertTrue(saftey.enabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertFalse(saftey.safeProtected);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultSafteyCheck_False_WrongCType() public {
+    vm.startPrank(aliceProxy);
+    uint256 newVaultId = safeManager.openSAFE('TKN', aliceProxy);
+    safeManager.protectSAFE(newVaultId, address(saviour));
+    safeManager.allowSAFE(newVaultId, address(saviour), true);
+    vm.expectRevert(
+      abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(abi.encodePacked('TKN')))
+    );
+    IODSaviour.VaultSaftey memory saftey = saviour.vaultSafteyCheck(newVaultId);
   }
 }
 
@@ -217,6 +327,9 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       liquidationPenalty: 20_000,
       liquidationQuantity: 1 ether
     });
+
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
   }
 
   event Liquidate(
