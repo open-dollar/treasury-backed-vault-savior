@@ -5,12 +5,12 @@ import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
-import {ODSaviour} from '../src/contracts/ODSaviour.sol';
-import {ISAFESaviour} from '../src/interfaces/ISAFESaviour.sol';
-import {IODSaviour} from '../src/interfaces/IODSaviour.sol';
+import {ODSaviour} from '../../src/contracts/ODSaviour.sol';
+import {ISAFESaviour} from '../../src/interfaces/ISAFESaviour.sol';
+import {IODSaviour} from '../../src/interfaces/IODSaviour.sol';
 import {SetUp} from './SetUp.sol';
 import {ISAFEEngine} from './SetUp.sol';
-import {OracleRelayerForTest} from './mock-contracts/OracleRelayerForTest.sol';
+import {OracleRelayerForTest} from '../mock-contracts/OracleRelayerForTest.sol';
 import {IModifiablePerCollateral} from '@opendollar/interfaces/utils/IModifiablePerCollateral.sol';
 
 contract ODSaviourSetUp is SetUp {
@@ -43,7 +43,7 @@ contract ODSaviourSetUp is SetUp {
     }
 
     saviour.modifyParameters('saviourTreasury', abi.encode(saviourTreasury));
-    saviour.addAuthorization(saviourTreasury);
+
     IOracleRelayer.OracleRelayerCollateralParams memory oracleCParams = IOracleRelayer.OracleRelayerCollateralParams({
       oracle: IDelayedOracle(address(1)),
       safetyCRatio: 1.25e27,

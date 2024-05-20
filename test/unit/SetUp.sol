@@ -17,10 +17,10 @@ import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol'
 import {IModifiablePerCollateral} from '@opendollar/interfaces/utils/IModifiablePerCollateral.sol';
 
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
-import {MintableERC20} from './mock-contracts/MintableERC20.sol';
+import {MintableERC20} from '../mock-contracts/MintableERC20.sol';
 
-import {DummyCollateralAuctionHouse} from './mock-contracts/CollateralAuctionHouseForTest.sol';
-import {LiquidationEngineForTest} from './mock-contracts/LiquidationEngineForTest.sol';
+import {DummyCollateralAuctionHouse} from '../mock-contracts/CollateralAuctionHouseForTest.sol';
+import {LiquidationEngineForTest} from '../mock-contracts/LiquidationEngineForTest.sol';
 
 import {EnumerableSet} from '@openzeppelin/utils/structs/EnumerableSet.sol';
 

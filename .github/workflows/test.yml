@@ -1,34 +1,74 @@
-name: test
+name: CI
 
-on: workflow_dispatch
+on: [push]
 
-env:
-  FOUNDRY_PROFILE: ci
+concurrency:
+  group: ${{ github.workflow}}-${{github.ref}}
+  cancel-in-progress: true
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
+    lint:
+      name: Run Linters
+      runs-on: ubuntu-latest
 
-    name: Foundry project
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      strategy:
+        matrix:
+          node-version: [18.x]
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
+      steps:
+        - uses: actions/checkout@v3
 
-      - name: Run Forge build
-        run: |
-          forge --version
-          forge build --sizes
-        id: build
+        - name: Install Foundry
+          uses: foundry-rs/foundry-toolchain@v1
+          with:
+            version: nightly
 
-      - name: Run Forge tests
-        run: |
-          forge test -vvv
-        id: test
+        - name: Use Node.js
+          uses: actions/setup-node@v3
+          with:
+            node-version: ${{ matrix.node-version }}
+            cache: "yarn"
+
+        - name: Install dependencies
+          run: yarn --frozen-lockfile --network-concurrency 1
+
+        - run: yarn lint:check
+
+    forge:
+      name: Run Unit and E2E Tests
+      runs-on: ubuntu-latest
+
+      strategy:
+        matrix:
+          node-version: [20.x]
+
+      steps:
+        - uses: actions/checkout@v3
+          with:
+            submodules: recursive
+
+        - name: Install Foundry
+          uses: foundry-rs/foundry-toolchain@v1
+          with:
+            version: nightly
+            cache: true
+
+        - name: Install forge dependencies
+          run: forge install
+
+        - name: Install yarn dependencies
+          run: yarn install --frozen-lockfile
+
+        - name: Build
+          run: forge build
+
+        - name: "Create env file"
+          run: |
+            touch .env
+            echo ARB_MAINNET_RPC="${{ secrets.ARB_MAINNET_RPC }}" >> .env
+            echo ARB_MAINNET_DEPLOYER_PK="${{ secrets.ARB_MAINNET_DEPLOYER_PK }}" >> .env
+            cat .env
+
+        - name: Run tests
+          shell: bash
+          run: yarn test
