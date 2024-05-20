@@ -181,7 +181,7 @@ contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
     assertTrue(saviour.saviourIsReady(ARB));
   }
 
-  function test_SaviourIsReady_False_NoAllowance() public view {
+  function test_SaviourIsReady_False_NoAllowance() public {
     assertFalse(saviour.saviourIsReady(ARB));
   }
 
@@ -198,11 +198,11 @@ contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
 }
 
 contract UnitODSaviourDeployment is ODSaviourSetUp {
-  function test_Set_LiquidationEngine() public view {
+  function test_Set_LiquidationEngine() public {
     assertEq(address(saviour.liquidationEngine()), address(liquidationEngine));
   }
 
-  function test_Set_Vault721() public view {
+  function test_Set_Vault721() public {
     assertEq(address(saviour.vault721()), address(vault721));
   }
 
@@ -212,7 +212,7 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_OracleRelayer() public view {
+  function test_Set_OracleRelayer() public {
     assertEq(address(saviour.oracleRelayer()), address(oracleRelayer));
   }
 
@@ -222,15 +222,15 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_SafeManager() public view {
+  function test_Set_SafeManager() public {
     assertEq(address(saviour.safeManager()), address(safeManager));
   }
 
-  function test_Set_SafeEngine() public view {
+  function test_Set_SafeEngine() public {
     assertEq(address(saviour.safeEngine()), address(safeEngine));
   }
 
-  function test_Set_CollateralJoinFactory() public view {
+  function test_Set_CollateralJoinFactory() public {
     assertEq(address(saviour.collateralJoinFactory()), address(collateralJoinFactory));
   }
 
@@ -240,11 +240,11 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_LiquidatorReward() public view {
+  function test_Set_LiquidatorReward() public {
     assertEq(saviour.liquidatorReward(), 0);
   }
 
-  function test_Set_SaviourTokens() public view {
+  function test_Set_SaviourTokens() public {
     assertEq(saviour.cType(ARB), address(collateralToken));
   }
 }
