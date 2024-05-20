@@ -69,21 +69,22 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
       && (ILiquidationEngine(liquidationEngine).safeSaviours(address(this)) != 0);
   }
 
-  function vaultSafteyCheck(uint256 vaultId) public view returns (VaultSaftey memory health) {
-    health.vaultId = vaultId;
+  function vaultData(uint256 vaultId) public view returns (VaultData memory vData) {
+    vData.id = vaultId;
     IODSafeManager.SAFEData memory safeData = safeManager.safeData(vaultId);
-    health.allowed = safeManager.safeCan(safeData.owner, vaultId, safeData.nonce, address(this));
-    health.enabled = isEnabled(vaultId);
-    health.vaultCtypeTokenAddress = cType(safeData.collateralType);
-    if (health.vaultCtypeTokenAddress != address(0)) {
-      health.saviourAllowance = IERC20(health.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
-    } else {
-      revert UninitializedCollateral(safeData.collateralType);
-    }
-    health.safeProtected = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
+    vData.isAllowed = safeManager.safeCan(safeData.owner, vaultId, safeData.nonce, address(this));
+
+    vData.isChosenSaviour = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
       safeData.collateralType, safeData.safeHandler
     ) == address(this);
-    health.saviourIsReady = health.allowed && health.enabled && (health.saviourAllowance != 0) && health.safeProtected;
+        vData.isEnabled = isEnabled(vaultId);
+      vData.vaultCtypeTokenAddress = cType(safeData.collateralType);
+    if (vData.vaultCtypeTokenAddress == address(0)) revert UninitializedCollateral(safeData.collateralType);
+
+    vData.saviourAllowance = IERC20(vData.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
+
+    vData.treasuryBalance = IERC20(vData.vaultCtypeTokenAddress).balanceOf(saviourTreasury);
+
   }
 
   function saveSAFE(

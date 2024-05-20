@@ -35,14 +35,15 @@ interface IODSaviour is ISAFESaviour {
     address collateralJoinFactory;
   }
 
-  struct VaultSaftey {
-    uint256 vaultId;
-    bool allowed;
-    bool enabled;
-    address vaultCtypeTokenAddress;
+  struct VaultData {
+    uint256 id;
+    bool isAllowed;
+        bool isChosenSaviour;
+    
+    bool isEnabled;
+   address vaultCtypeTokenAddress;
     uint256 saviourAllowance;
-    bool safeProtected;
-    bool saviourIsReady;
+    uint256 treasuryBalance;
   }
 
   function isEnabled(uint256 _vaultId) external view returns (bool _enabled);
