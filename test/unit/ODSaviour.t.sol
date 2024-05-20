@@ -255,9 +255,9 @@ contract UnitODSaviourModifyParameters is ODSaviourSetUp {
     uint256 safeId = safeManager.openSAFE(ARB, aliceProxy);
     vm.startPrank(saviourTreasury);
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
-    assertTrue(saviour.isEnabled(safeId));
+    assertTrue(saviour.isVaultEnabled(safeId));
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, false));
-    assertFalse(saviour.isEnabled(safeId));
+    assertFalse(saviour.isVaultEnabled(safeId));
   }
 
   function test_ModifyParameters_SetVaultStatus_Revert() public {
@@ -265,7 +265,7 @@ contract UnitODSaviourModifyParameters is ODSaviourSetUp {
     vm.prank(saviourTreasury);
     vm.expectRevert(abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(0)));
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
-    assertFalse(saviour.isEnabled(safeId));
+    assertFalse(saviour.isVaultEnabled(safeId));
   }
 
   function test_ModifyParameters_liquidatorReward() public {

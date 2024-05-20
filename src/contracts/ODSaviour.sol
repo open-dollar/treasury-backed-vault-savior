@@ -56,7 +56,7 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     safeEngine = ISAFEEngine(address(safeManager.safeEngine()));
   }
 
-  function isEnabled(uint256 _vaultId) public view returns (bool _enabled) {
+  function isVaultEnabled(uint256 _vaultId) public view returns (bool _enabled) {
     _enabled = _enabledVaults[_vaultId];
   }
 
@@ -77,14 +77,13 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     vData.isChosenSaviour = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
       safeData.collateralType, safeData.safeHandler
     ) == address(this);
-        vData.isEnabled = isEnabled(vaultId);
-      vData.vaultCtypeTokenAddress = cType(safeData.collateralType);
+    vData.isEnabled = isVaultEnabled(vaultId);
+    vData.vaultCtypeTokenAddress = cType(safeData.collateralType);
     if (vData.vaultCtypeTokenAddress == address(0)) revert UninitializedCollateral(safeData.collateralType);
 
     vData.saviourAllowance = IERC20(vData.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
 
     vData.treasuryBalance = IERC20(vData.vaultCtypeTokenAddress).balanceOf(saviourTreasury);
-
   }
 
   function saveSAFE(
