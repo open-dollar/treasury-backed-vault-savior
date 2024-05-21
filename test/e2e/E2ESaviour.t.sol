@@ -291,7 +291,6 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_increaseRisk1() public {
-    (uint256 _riskRatioBefore, int256 _percentOverSafetyBefore) = _readRisk(aliceNFV.safeHandler);
     _depositCollatAndGenDebt(vaults[aliceProxy], 0, 0.001 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 0.001 ether', _riskRatioAfter);
@@ -299,7 +298,6 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_increaseRisk2() public {
-    (uint256 _riskRatioBefore, int256 _percentOverSafetyBefore) = _readRisk(aliceNFV.safeHandler);
     _depositCollatAndGenDebt(vaults[aliceProxy], 0, 1 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 1 ether', _riskRatioAfter);
@@ -307,7 +305,6 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_increaseRisk3() public {
-    (uint256 _riskRatioBefore, int256 _percentOverSafetyBefore) = _readRisk(aliceNFV.safeHandler);
     _depositCollatAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 5 ether', _riskRatioAfter);
@@ -315,12 +312,10 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_triggerLiquidationScenario() public {
-    (uint256 _riskRatioBefore, int256 _percentOverSafetyBefore) = _readRisk(aliceNFV.safeHandler);
+    (uint256 _riskRatioBefore,) = _readRisk(aliceNFV.safeHandler);
     uint256 tknPriceBefore = tknOracle.read();
-    uint256 systemCoinPrice = systemCoinOracle.read();
     tknOracle.setPriceAndValidity(tknPriceBefore - 0.05 ether, true);
-    uint256 tknPriceAfter = tknOracle.read();
-    (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
+    (uint256 _riskRatioAfter,) = _readRisk(aliceNFV.safeHandler);
     assertTrue(_riskRatioBefore > _riskRatioAfter);
   }
 }

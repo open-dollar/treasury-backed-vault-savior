@@ -78,9 +78,6 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     }
     if (!_enabledVaults[_vaultId]) revert VaultNotAllowed(_vaultId);
 
-    IOracleRelayer.OracleRelayerCollateralParams memory _oracleParams = oracleRelayer.cParams(_cType);
-    IDelayedOracle _oracle = _oracleParams.oracle;
-
     uint256 _reqCollateral;
     {
       ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(_cType);
