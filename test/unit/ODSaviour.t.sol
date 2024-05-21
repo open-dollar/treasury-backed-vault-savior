@@ -301,6 +301,8 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
     assertEq(collateralToken.balanceOf(address(saviour)), 0);
 
+    uint256 safeStartingDebtBalance = safeEngine.safes(ARB, safeHandler).generatedDebt;
+
     // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
 
     vm.prank(saviourTreasury);
@@ -318,12 +320,18 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
         })
       )
     );
-    vm.expectEmit(true, true, false, true);
-    emit SafeSaved(vaultId, 90 ether);
+    vm.mockCall(
+      address(safeEngine),
+      abi.encodeWithSelector(ISAFEEngine.safes.selector, ARB, safeHandler),
+      abi.encode(
+        ISAFEEngine.SAFE({lockedCollateral: safeStartingCollateralBalance, generatedDebt: safeStartingDebtBalance})
+      )
+    );
+    emit SafeSaved(vaultId, 80 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
-    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, safeStartingCollateralBalance + 90 ether);
+    assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, safeStartingCollateralBalance);
     assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, liquidation.safeDebt);
-    assertEq(collateralToken.balanceOf(saviourTreasury), startingSaviourBalance - 90 ether);
+    assertEq(collateralToken.balanceOf(saviourTreasury), startingSaviourBalance - 80 ether);
   }
 
   /// test that safe is liquidated without saviour

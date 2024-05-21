@@ -84,7 +84,6 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     uint256 _reqCollateral;
     {
       ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(_cType);
-      ISAFEEngine.SAFE memory _safeData = safeEngine.safes(_cType, _safe);
 
       (uint256 _currCollateral, uint256 _currDebt) = getCurrentCollateralAndDebt(_cType, _safe);
       uint256 _accumulatedRate = _safeEngCData.accumulatedRate;
