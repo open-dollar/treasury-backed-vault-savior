@@ -436,7 +436,6 @@ contract E2ESaviourTestLiquidateAndSave is E2ESaviourTestLiquidateSetup {
   }
 }
 
-/// todo clean up and refactor to remove duplicate code in other setups
 contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
   using Math for uint256;
 
@@ -476,8 +475,6 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
 
   function _devalueCollateral(uint256 _devaluation) internal {
     uint256 _tknPrice = tknOracle.read();
-    emit log_named_uint('TKN   Price', _tknPrice);
-    emit log_named_uint('DEVAL Price', _devaluation);
     tknOracle.setPriceAndValidity(_tknPrice - _devaluation, true);
     _setAndRefreshData();
     oracleRelayer.updateCollateralPrice(TKN);
@@ -489,21 +486,20 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
     _devalueCollateral(_devaluation);
 
     ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(TKN);
-    ISAFEEngine.SAFE memory _safeData = safeEngine.safes(TKN, aliceNFV.safeHandler);
 
-    (uint256 _currCollateral, uint256 _currDebt) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    (uint256 _currentCollateral, uint256 _currentDebt) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
     uint256 _accumulatedRate = _safeEngCData.accumulatedRate;
     uint256 _liquidationPrice = _safeEngCData.liquidationPrice;
     uint256 _safetyPrice = _safeEngCData.safetyPrice;
+    emit log_named_uint('Safety           Price', 10);
 
-    uint256 _collatXliqPrice = _currCollateral.wmul(_liquidationPrice);
-    uint256 _debtXaccumuRate = _currDebt.wmul(_accumulatedRate);
+    uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_liquidationPrice);
+    uint256 _debtXaccumulatedRate = _currentDebt.wmul(_accumulatedRate);
 
-    if (_collatXliqPrice < _debtXaccumuRate) {
-      uint256 _reqAmount = (_debtXaccumuRate - _collatXliqPrice).wdiv(_safetyPrice);
-      uint256 _newCollatXliqPrice = (_currCollateral + _reqAmount).wmul(_liquidationPrice);
-
-      assertTrue(_newCollatXliqPrice > _debtXaccumuRate);
+    if (_collateralXliquidationPrice < _debtXaccumulatedRate) {
+      uint256 _requiredAmount = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+      uint256 _newCollateralXliquidationPrice = (_currentCollateral + _requiredAmount).wmul(_liquidationPrice);
+      assertTrue(_newCollateralXliquidationPrice > _debtXaccumulatedRate);
     }
   }
 
@@ -544,5 +540,84 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
       (_collateralC, _debtC) = saviour.getCurrentCollateralAndDebt(TKN, bobNFV.safeHandler);
       assertTrue(_collateralC == _collateralA && _debtC == _debtA);
     }
+  }
+
+  /**
+   * @dev `emit log_named_[dataType]` does not work for fuzz tests, only static tests
+   * static tests added below for logging outputs
+   */
+  function test_algorithm_static() public {
+    uint256 _devaluation = 0.15 ether;
+    _devalueCollateral(_devaluation);
+
+    ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(TKN);
+
+    (uint256 _currentCollateral, uint256 _currentDebt) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    emit log_named_uint('_currentCollateral ------------', _currentCollateral);
+    emit log_named_uint('_currentDebt ------------------', _currentDebt);
+
+    uint256 _accumulatedRate = _safeEngCData.accumulatedRate;
+    uint256 _liquidationPrice = _safeEngCData.liquidationPrice;
+    uint256 _safetyPrice = _safeEngCData.safetyPrice;
+    emit log_named_uint('_accumulatedRate --------------', _accumulatedRate);
+    emit log_named_uint('_liquidationPrice -------------', _liquidationPrice);
+    emit log_named_uint('_safetyPrice ------------------', _safetyPrice);
+
+    uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_liquidationPrice);
+    uint256 _debtXaccumulatedRate = _currentDebt.wmul(_accumulatedRate);
+    emit log_named_uint('_collateralXliquidationPrice --', _collateralXliquidationPrice);
+    emit log_named_uint('_debtXaccumulatedRate ---------', _debtXaccumulatedRate);
+
+    if (_collateralXliquidationPrice < _debtXaccumulatedRate) {
+      uint256 _requiredAmount;
+
+      /// @notice scoped to reduce stack
+      {
+        uint256 _collateralDeficit = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+        emit log_named_uint('_collateralDeficit ------------', _collateralDeficit);
+
+        uint256 _safetyCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice);
+        emit log_named_uint('_safetyCollateral -------------', _safetyCollateral);
+
+        _requiredAmount = _collateralDeficit + _safetyCollateral - _currentCollateral;
+        emit log_named_uint('_requiredAmount ---------------', _requiredAmount);
+      }
+
+      uint256 _newCollateralXliquidationPrice = (_currentCollateral + _requiredAmount).wmul(_liquidationPrice);
+      emit log_named_uint('_newCollateralXliquidationPrice', _newCollateralXliquidationPrice);
+
+      assertTrue(_newCollateralXliquidationPrice > _debtXaccumulatedRate);
+
+      /// @notice compare to ratio using NFTRenderer formatted ratios
+      emit log_named_uint('_safetyCRatio -----------------', oracleRelayer.cParams(TKN).safetyCRatio / 1e18);
+      emit log_named_uint('_liquidationCRatio ------------', oracleRelayer.cParams(TKN).liquidationCRatio / 1e18);
+
+      /// @notice `_ratio` should approximately equal `_safetyCRatio`
+      emit log_named_uint(
+        '_ratio ------------------------',
+        (
+          ((_currentCollateral + _requiredAmount).wmul(oracleRelayer.cParams(TKN).oracle.read())).wdiv(
+            _debtXaccumulatedRate
+          )
+        )
+      );
+    }
+  }
+
+  function test_liquidateProtectedSafe_static() public {
+    uint256 _devaluation = 0.15 ether;
+    (uint256 _collateralA, uint256 _debtA) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    assertTrue(_collateralA > 0 && _debtA > 0);
+    assertTrue((_collateralA * liquidationPrice) >= (_debtA * accumulatedRate));
+
+    _devalueCollateral(_devaluation);
+    (uint256 _collateralB, uint256 _debtB) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    if (liquidationPrice != 0 && (_collateralB * liquidationPrice) < (_debtB * accumulatedRate)) {
+      liquidationEngine.liquidateSAFE(TKN, aliceNFV.safeHandler);
+    }
+    (uint256 _collateralC, uint256 _debtC) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    assertTrue(_collateralC >= _collateralA);
+    assertEq(_debtC, _debtA);
+    emit log_named_uint('x', _collateralA);
   }
 }
