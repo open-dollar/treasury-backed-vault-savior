@@ -1,14 +1,14 @@
 {
-  "name": "arbitrum-vault-saviour",
+  "name": "treasury-backed-vault-saviour",
   "version": "1.6.5",
   "private": true,
-  "description": "Vault Saviour for Arbitrum on Open Dollar protocol",
-  "homepage": "https://www.opendollar.com/",
+  "description": "Vault saviour using treasury funds to prevent liquidation",
+  "homepage": "https://opendollar.com/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/open-dollar/arbitrum-vault-saviour"
+    "url": "https://github.com/open-dollar/treasury-backed-vault-saviour"
   },
-  "license": "MIT",
+  "license": "GNU AGPL",
   "author": "OpenFi Foundation",
   "contributors": [
     "pi0neerpat (https://github.com/pi0neerpat)",
