@@ -485,19 +485,24 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
     _devaluation = bound(_devaluation, 0.1 ether, 1 ether - 1);
     _devalueCollateral(_devaluation);
 
-    ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(TKN);
-
     (uint256 _currentCollateral, uint256 _currentDebt) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
-    uint256 _accumulatedRate = _safeEngCData.accumulatedRate;
+
+    ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(TKN);
     uint256 _liquidationPrice = _safeEngCData.liquidationPrice;
     uint256 _safetyPrice = _safeEngCData.safetyPrice;
-    emit log_named_uint('Safety           Price', 10);
 
     uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_liquidationPrice);
-    uint256 _debtXaccumulatedRate = _currentDebt.wmul(_accumulatedRate);
+    uint256 _debtXaccumulatedRate = _currentDebt.wmul(_safeEngCData.accumulatedRate);
 
     if (_collateralXliquidationPrice < _debtXaccumulatedRate) {
-      uint256 _requiredAmount = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+      uint256 _requiredAmount;
+
+      /// @notice scoped to reduce stack
+      {
+        uint256 _collateralDeficit = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+        uint256 _safetyCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice);
+        _requiredAmount = _collateralDeficit + _safetyCollateral - _currentCollateral;
+      }
       uint256 _newCollateralXliquidationPrice = (_currentCollateral + _requiredAmount).wmul(_liquidationPrice);
       assertTrue(_newCollateralXliquidationPrice > _debtXaccumulatedRate);
     }
@@ -588,9 +593,12 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
 
       assertTrue(_newCollateralXliquidationPrice > _debtXaccumulatedRate);
 
-      /// @notice compare to ratio using NFTRenderer formatted ratios
-      emit log_named_uint('_safetyCRatio -----------------', oracleRelayer.cParams(TKN).safetyCRatio / 1e18);
+      /**
+       * @notice compare ratio using NFTRenderer math
+       * formatted to 9 fixed-point decimals instead of 2 fixed-point decimals
+       */
       emit log_named_uint('_liquidationCRatio ------------', oracleRelayer.cParams(TKN).liquidationCRatio / 1e18);
+      emit log_named_uint('_safetyCRatio -----------------', oracleRelayer.cParams(TKN).safetyCRatio / 1e18);
 
       /// @notice `_ratio` should approximately equal `_safetyCRatio`
       emit log_named_uint(
@@ -602,22 +610,5 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
         )
       );
     }
-  }
-
-  function test_liquidateProtectedSafe_static() public {
-    uint256 _devaluation = 0.15 ether;
-    (uint256 _collateralA, uint256 _debtA) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
-    assertTrue(_collateralA > 0 && _debtA > 0);
-    assertTrue((_collateralA * liquidationPrice) >= (_debtA * accumulatedRate));
-
-    _devalueCollateral(_devaluation);
-    (uint256 _collateralB, uint256 _debtB) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
-    if (liquidationPrice != 0 && (_collateralB * liquidationPrice) < (_debtB * accumulatedRate)) {
-      liquidationEngine.liquidateSAFE(TKN, aliceNFV.safeHandler);
-    }
-    (uint256 _collateralC, uint256 _debtC) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
-    assertTrue(_collateralC >= _collateralA);
-    assertEq(_debtC, _debtA);
-    emit log_named_uint('x', _collateralA);
   }
 }

@@ -80,20 +80,19 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
 
     uint256 _requiredCollateral;
     {
-      ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(_cType);
-
       (uint256 _currentCollateral, uint256 _currentDebt) = getCurrentCollateralAndDebt(_cType, _safe);
-      uint256 _accumulatedRate = _safeEngCData.accumulatedRate;
-      uint256 _liquidationPrice = _safeEngCData.liquidationPrice;
+
+      ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(_cType);
       uint256 _safetyPrice = _safeEngCData.safetyPrice;
 
-      uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_liquidationPrice);
-      uint256 _debtXaccumulatedRate = _currentDebt.wmul(_accumulatedRate);
+      uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_safeEngCData.liquidationPrice);
+      uint256 _debtXaccumulatedRate = _currentDebt.wmul(_safeEngCData.accumulatedRate);
 
-      _requiredCollateral = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
-      uint256 _newCollateralXliquidationPrice = (_requiredCollateral + _currentCollateral).wmul(_liquidationPrice);
+      /// @notice (lockedCollateral * liquidationPrice / safetyPrice) + (generatedDebt * accumulatedRate / safetyPrice)
+      uint256 _requiredTotalCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice)
+        + (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
 
-      if (_newCollateralXliquidationPrice <= _debtXaccumulatedRate) revert SafetyRatioNotMet();
+      _requiredCollateral = _requiredTotalCollateral - _currentCollateral;
     }
     IERC20 _token = _saviourTokenAddresses[_cType];
     _token.transferFrom(saviourTreasury, address(this), _requiredCollateral);

@@ -327,11 +327,11 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
         ISAFEEngine.SAFE({lockedCollateral: safeStartingCollateralBalance, generatedDebt: safeStartingDebtBalance})
       )
     );
-    emit SafeSaved(vaultId, 80 ether);
+    emit SafeSaved(vaultId, 90 ether);
     liquidationEngine.liquidateSAFE(ARB, safeHandler);
     assertEq(safeEngine.safes(ARB, safeHandler).lockedCollateral, safeStartingCollateralBalance);
     assertEq(safeEngine.safes(ARB, safeHandler).generatedDebt, liquidation.safeDebt);
-    assertEq(collateralToken.balanceOf(saviourTreasury), startingSaviourBalance - 80 ether);
+    assertEq(collateralToken.balanceOf(saviourTreasury), startingSaviourBalance - 90 ether);
   }
 
   /// test that safe is liquidated without saviour
