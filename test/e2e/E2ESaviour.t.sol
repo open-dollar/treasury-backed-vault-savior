@@ -497,7 +497,6 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
     if (_collateralXliquidationPrice < _debtXaccumulatedRate) {
       uint256 _requiredAmount;
 
-      /// @notice scoped to reduce stack
       {
         uint256 _collateralDeficit = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
         uint256 _safetyCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice);
@@ -509,7 +508,7 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
   }
 
   function test_liquidateProtectedSafe(uint256 _devaluation) public {
-    _devaluation = bound(_devaluation, 1, 1 ether - 1);
+    _devaluation = bound(_devaluation, 0.1 ether, 1 ether - 1);
     (uint256 _collateralA, uint256 _debtA) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
     assertTrue(_collateralA > 0 && _debtA > 0);
     assertTrue((_collateralA * liquidationPrice) >= (_debtA * accumulatedRate));
@@ -525,7 +524,7 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
   }
 
   function test_liquidateUnprotectedSafe(uint256 _devaluation) public {
-    _devaluation = bound(_devaluation, 1, 1 ether - 1);
+    _devaluation = bound(_devaluation, 0.1 ether, 1 ether - 1);
     uint256 _collateralC;
     uint256 _debtC;
 
@@ -610,5 +609,64 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
         )
       );
     }
+  }
+
+  /// @notice liquidation does not trigger
+  function test_liquidateProtectedSafe_static10() public {
+    _staticDevaluationLiquidation(0.1 ether);
+  }
+
+  /// @notice liquidation is saved
+  function test_liquidateProtectedSafe_static15() public {
+    _staticDevaluationLiquidation(0.15 ether);
+  }
+
+  /// @notice liquidation is saved
+  function test_liquidateProtectedSafe_static20() public {
+    _staticDevaluationLiquidation(0.2 ether);
+  }
+
+  /**
+   * @dev helper function to check:
+   * `_ratioBeforeDevaluation` collateral-debt ratio before collateral devaluation
+   * `_ratioAfterDevaluation` collateral-debt ratio after collateral devaluation
+   * `_ratioAfterSaveSAFE` collateral-debt ratio after ODSaviour.saveSAFE is called && liquidation is valid
+   */
+  function _staticDevaluationLiquidation(uint256 _devaluation) internal {
+    (uint256 _collateralA, uint256 _debtA) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    uint256 _debtXaccumulatedRate = _debtA.wmul(accumulatedRate);
+
+    emit log_named_uint('_liquidationCRatio ------------', oracleRelayer.cParams(TKN).liquidationCRatio / 1e18);
+    emit log_named_uint(
+      '_ratioBeforeDevaluation -------',
+      (((_collateralA).wmul(oracleRelayer.cParams(TKN).oracle.read())).wdiv(_debtXaccumulatedRate))
+    );
+
+    assertTrue(_collateralA > 0 && _debtA > 0);
+    assertTrue((_collateralA * liquidationPrice) >= (_debtA * accumulatedRate));
+    _devalueCollateral(_devaluation);
+
+    (uint256 _collateralB, uint256 _debtB) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+
+    emit log_named_uint(
+      '_ratioAfterDevaluation --------',
+      (((_collateralB).wmul(oracleRelayer.cParams(TKN).oracle.read())).wdiv(_debtXaccumulatedRate))
+    );
+
+    if (liquidationPrice != 0 && (_collateralB * liquidationPrice) < (_debtB * accumulatedRate)) {
+      liquidationEngine.liquidateSAFE(TKN, aliceNFV.safeHandler);
+    }
+    (uint256 _collateralC, uint256 _debtC) = saviour.getCurrentCollateralAndDebt(TKN, aliceNFV.safeHandler);
+    emit log_named_uint('_collateralA  -----------------', _collateralA);
+    emit log_named_uint('_collateralC  -----------------', _collateralC);
+
+    assertTrue(_collateralC >= _collateralA);
+    assertEq(_debtC, _debtA);
+
+    emit log_named_uint('_safetyCRatio -----------------', oracleRelayer.cParams(TKN).safetyCRatio / 1e18);
+    emit log_named_uint(
+      '_ratioAfterSaveSAFE -----------',
+      (((_collateralC).wmul(oracleRelayer.cParams(TKN).oracle.read())).wdiv(_debtXaccumulatedRate))
+    );
   }
 }

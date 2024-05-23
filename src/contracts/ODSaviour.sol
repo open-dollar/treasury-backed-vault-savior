@@ -88,11 +88,10 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
       uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_safeEngCData.liquidationPrice);
       uint256 _debtXaccumulatedRate = _currentDebt.wmul(_safeEngCData.accumulatedRate);
 
-      /// @notice (lockedCollateral * liquidationPrice / safetyPrice) + (generatedDebt * accumulatedRate / safetyPrice)
-      uint256 _requiredTotalCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice)
-        + (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+      uint256 _deficitCollateral = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+      uint256 _safetyCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice);
 
-      _requiredCollateral = _requiredTotalCollateral - _currentCollateral;
+      _requiredCollateral = _deficitCollateral + _safetyCollateral - _currentCollateral;
     }
     IERC20 _token = _saviourTokenAddresses[_cType];
     _token.transferFrom(saviourTreasury, address(this), _requiredCollateral);
