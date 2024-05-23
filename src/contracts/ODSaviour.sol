@@ -4,7 +4,6 @@ pragma solidity 0.8.20;
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
-import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {ICollateralJoinFactory} from '@opendollar/interfaces/factories/ICollateralJoinFactory.sol';
 import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
@@ -123,8 +122,8 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
 
   function _initializeCollateralType(bytes32 _cType, bytes memory _collateralParams) internal virtual override {
     if (address(_saviourTokenAddresses[_cType]) != address(0)) revert AlreadyInitialized(_cType);
-    address saviourTokenAddress = abi.decode(_collateralParams, (address));
-    _saviourTokenAddresses[_cType] = IERC20(saviourTokenAddress);
+    address _saviourTokenAddress = abi.decode(_collateralParams, (address));
+    _saviourTokenAddresses[_cType] = IERC20(_saviourTokenAddress);
   }
 
   function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {
