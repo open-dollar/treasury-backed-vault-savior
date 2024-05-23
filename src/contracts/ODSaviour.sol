@@ -4,7 +4,6 @@ pragma solidity 0.8.20;
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
-import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {ICollateralJoinFactory} from '@opendollar/interfaces/factories/ICollateralJoinFactory.sol';
 import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
@@ -78,36 +77,33 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     }
     if (!_enabledVaults[_vaultId]) revert VaultNotAllowed(_vaultId);
 
-    IOracleRelayer.OracleRelayerCollateralParams memory _oracleParams = oracleRelayer.cParams(_cType);
-    IDelayedOracle _oracle = _oracleParams.oracle;
-
-    uint256 _reqCollateral;
+    uint256 _requiredCollateral;
     {
-      (uint256 _currCollateral, uint256 _currDebt) = getCurrentCollateralAndDebt(_cType, _safe);
-      uint256 _accumulatedRate = safeEngine.cData(_cType).accumulatedRate;
+      (uint256 _currentCollateral, uint256 _currentDebt) = getCurrentCollateralAndDebt(_cType, _safe);
 
-      uint256 _currCRatio = ((_currCollateral.wmul(_oracle.read())).wdiv(_currDebt.wmul(_accumulatedRate)));
-      uint256 _safetyCRatio = _oracleParams.safetyCRatio / 1e18;
+      ISAFEEngine.SAFEEngineCollateralData memory _safeEngCData = safeEngine.cData(_cType);
+      uint256 _safetyPrice = _safeEngCData.safetyPrice;
 
-      if (_safetyCRatio > _currCRatio) {
-        uint256 _diffCRatio = _safetyCRatio.wdiv(_currCRatio);
-        _reqCollateral = (_currCollateral.wmul(_diffCRatio)) - _currCollateral;
-      } else {
-        revert SafetyRatioMet();
-      }
+      uint256 _collateralXliquidationPrice = _currentCollateral.wmul(_safeEngCData.liquidationPrice);
+      uint256 _debtXaccumulatedRate = _currentDebt.wmul(_safeEngCData.accumulatedRate);
+
+      uint256 _deficitCollateral = (_debtXaccumulatedRate - _collateralXliquidationPrice).wdiv(_safetyPrice);
+      uint256 _safetyCollateral = _collateralXliquidationPrice.wdiv(_safetyPrice);
+
+      _requiredCollateral = _deficitCollateral + _safetyCollateral - _currentCollateral;
     }
     IERC20 _token = _saviourTokenAddresses[_cType];
-    _token.transferFrom(saviourTreasury, address(this), _reqCollateral);
+    _token.transferFrom(saviourTreasury, address(this), _requiredCollateral);
 
-    if (_token.balanceOf(address(this)) >= _reqCollateral) {
+    if (_token.balanceOf(address(this)) >= _requiredCollateral) {
       address _collateralJoin = collateralJoinFactory.collateralJoins(_cType);
-      _token.approve(_collateralJoin, _reqCollateral);
-      ICollateralJoin(_collateralJoin).join(_safe, _reqCollateral);
-      safeManager.modifySAFECollateralization(_vaultId, int256(_reqCollateral), int256(0), false);
-      _collateralAdded = _reqCollateral;
+      _token.approve(_collateralJoin, _requiredCollateral);
+      ICollateralJoin(_collateralJoin).join(_safe, _requiredCollateral);
+      safeManager.modifySAFECollateralization(_vaultId, int256(_requiredCollateral), int256(0), false);
+      _collateralAdded = _requiredCollateral;
       _liquidatorReward = liquidatorReward;
 
-      emit SafeSaved(_vaultId, _reqCollateral);
+      emit SafeSaved(_vaultId, _requiredCollateral);
       _ok = true;
     } else {
       _ok = false;
@@ -118,16 +114,16 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
   function getCurrentCollateralAndDebt(
     bytes32 _cType,
     address _safe
-  ) public view returns (uint256 _currCollateral, uint256 _currDebt) {
-    ISAFEEngine.SAFE memory _safeEngineData = safeEngine.safes(_cType, _safe);
-    _currCollateral = _safeEngineData.lockedCollateral;
-    _currDebt = _safeEngineData.generatedDebt;
+  ) public view returns (uint256 _currentCollateral, uint256 _currentDebt) {
+    ISAFEEngine.SAFE memory _safeData = safeEngine.safes(_cType, _safe);
+    _currentCollateral = _safeData.lockedCollateral;
+    _currentDebt = _safeData.generatedDebt;
   }
 
   function _initializeCollateralType(bytes32 _cType, bytes memory _collateralParams) internal virtual override {
     if (address(_saviourTokenAddresses[_cType]) != address(0)) revert AlreadyInitialized(_cType);
-    address saviourTokenAddress = abi.decode(_collateralParams, (address));
-    _saviourTokenAddresses[_cType] = IERC20(saviourTokenAddress);
+    address _saviourTokenAddress = abi.decode(_collateralParams, (address));
+    _saviourTokenAddresses[_cType] = IERC20(_saviourTokenAddress);
   }
 
   function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {
