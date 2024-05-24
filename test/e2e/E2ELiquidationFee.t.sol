@@ -100,7 +100,7 @@ contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
     assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE - _deval);
   }
 
-  function test_vaultStartRatio() public {
+  function test_vaultRatioDevaluation() public {
     (uint256 _collateral, uint256 _debt) = _getSAFE(SOC, aliceNFV.safeHandler);
     uint256 _ratioBeforeDevaluation =
       _collateral.wmul(oracleRelayer.cParams(SOC).oracle.read()).wdiv(_debt.wmul(accumulatedRate));

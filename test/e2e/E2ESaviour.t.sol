@@ -75,6 +75,7 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
     address _tokenAddress
   ) public notZero(_cType, _tokenAddress) {
     vm.assume(_attacker != treasury);
+    vm.assume(_attacker != address(this));
     vm.prank(_attacker);
     vm.expectRevert();
     saviour.initializeCollateralType(_cType, abi.encode(_tokenAddress));
@@ -127,6 +128,7 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
 
   function test_saveSafeRevert(address _attacker, bytes32 _cType, address _safe) public {
     vm.assume(_attacker != address(liquidationEngine));
+    vm.assume(_attacker != address(this));
     vm.prank(_attacker);
     vm.expectRevert();
     saviour.saveSAFE(address(liquidationEngine), _cType, _safe);
