@@ -13,21 +13,9 @@ import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
 import {Common, TKN} from '@opendollar/test/e2e/Common.t.sol';
 import {ODSaviour} from 'src/contracts/ODSaviour.sol';
 import {IODSaviour} from 'src/interfaces/IODSaviour.sol';
+import {Data} from 'test/e2e/utils/Data.t.sol';
 
-contract E2ESaviourSetup is Common {
-  uint256 public constant TREASURY_AMOUNT = 1_000_000_000_000_000_000_000_000_000 ether;
-  uint256 public constant PROTOCOL_AMOUNT = 1_000_000_000 ether;
-  uint256 public constant USER_AMOUNT = 1000 ether;
-
-  ODSaviour public saviour;
-  address public treasury;
-
-  address public aliceProxy;
-  address public bobProxy;
-  address public deployerProxy;
-
-  mapping(address proxy => uint256 safeId) public vaults;
-
+contract E2ESaviourSetup is Common, Data {
   function setUp() public virtual override {
     super.setUp();
     treasury = vm.addr(uint256(keccak256('ARB Treasury')));
