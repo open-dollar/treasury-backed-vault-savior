@@ -5,17 +5,16 @@ import {ODProxy} from '@opendollar/contracts/proxies/ODProxy.sol';
 import {ISAFEEngine} from '@opendollar/interfaces/ISAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
-import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
 import {IAuthorizable} from '@opendollar/interfaces/utils/IAuthorizable.sol';
 import {DelayedOracleForTest} from '@opendollar/test/mocks/DelayedOracleForTest.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
-import {Common, TKN} from '@opendollar/test/e2e/Common.t.sol';
+import {TKN} from '@opendollar/test/e2e/Common.t.sol';
 import {ODSaviour} from 'src/contracts/ODSaviour.sol';
 import {IODSaviour} from 'src/interfaces/IODSaviour.sol';
-import {Data} from 'test/e2e/utils/Data.t.sol';
+import {SharedSetup, RAD, RAY, WAD} from 'test/e2e/utils/SharedSetup.t.sol';
 
-contract E2ESaviourSetup is Common, Data {
+contract E2ESaviourSetup is SharedSetup {
   function setUp() public virtual override {
     super.setUp();
     treasury = vm.addr(uint256(keccak256('ARB Treasury')));
@@ -31,36 +30,9 @@ contract E2ESaviourSetup is Common, Data {
     saviour.initializeCollateralType(TKN, abi.encode(address(collateral[TKN])));
 
     _mintTKN(treasury, TREASURY_AMOUNT, address(saviour));
-    aliceProxy = _userSetup(alice, USER_AMOUNT, 'AliceProxy');
-    bobProxy = _userSetup(bob, USER_AMOUNT, 'BobProxy');
-    deployerProxy = _userSetup(deployer, PROTOCOL_AMOUNT, 'DeployerProxy');
-  }
-
-  function _userSetup(address _user, uint256 _amount, string memory _name) internal returns (address _proxy) {
-    _proxy = _deployOrFind(_user);
-    _mintTKN(_user, _amount, _proxy);
-    vm.label(_proxy, _name);
-    vm.prank(_proxy);
-    vaults[_proxy] = safeManager.openSAFE(TKN, _proxy);
-  }
-
-  function _mintTKN(address _account, uint256 _amount, address _okAccount) internal {
-    vm.startPrank(_account);
-    ERC20ForTest _token = ERC20ForTest(address(collateral[TKN]));
-    _token.mint(_amount);
-    if (_okAccount != address(0)) {
-      _token.approve(_okAccount, _amount);
-    }
-    vm.stopPrank();
-  }
-
-  function _deployOrFind(address _owner) internal returns (address) {
-    address proxy = vault721.getProxy(_owner);
-    if (proxy == address(0)) {
-      return address(vault721.build(_owner));
-    } else {
-      return proxy;
-    }
+    aliceProxy = _userTKNVaultSetup(alice, USER_AMOUNT, 'AliceProxy');
+    bobProxy = _userTKNVaultSetup(bob, USER_AMOUNT, 'BobProxy');
+    deployerProxy = _userTKNVaultSetup(deployer, PROTOCOL_AMOUNT, 'DeployerProxy');
   }
 }
 
@@ -161,40 +133,28 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
   }
 }
 
-/// TODO in testParams safety ratio is the same as liquidation ratio - change ratios
 contract E2ESaviourTestRiskSetup is E2ESaviourSetup {
   using Math for uint256;
 
-  uint256 public constant RAD = 1e45;
-  uint256 public constant RAY = 1e27;
-  uint256 public constant WAD = 1e18;
   uint256 public constant RAY_WAD_DIFF = RAY / WAD;
   uint256 public constant TWO_DECIMAL_OFFSET = 1e2;
 
   uint256 public constant DEPOSIT = 100 ether;
   uint256 public constant MINT = DEPOSIT / 3 * 2;
 
-  IVault721.NFVState public aliceNFV;
-  IVault721.NFVState public bobNFV;
-
-  ISAFEEngine.SAFEEngineCollateralData public cTypeData;
-  IOracleRelayer.OracleRelayerCollateralParams public oracleParams;
   IDelayedOracle public oracle;
   DelayedOracleForTest public tknOracle;
 
   uint256 public oracleRead; // WAD
-  uint256 public liquidationCRatio; // RAY
-  uint256 public safetyCRatio; // RAY
-  uint256 public accumulatedRate; // RAY
-  uint256 public liquidationPrice; // RAY
 
   function setUp() public virtual override {
     super.setUp();
     tknOracle = DelayedOracleForTest(address(delayedOracle[TKN]));
     _setAndRefreshData();
-    _depositCollatAndGenDebt(vaults[aliceProxy], DEPOSIT, MINT, aliceProxy);
-    _depositCollatAndGenDebt(vaults[bobProxy], DEPOSIT, MINT, bobProxy);
-    _depositCollatAndGenDebt(vaults[deployerProxy], PROTOCOL_AMOUNT, MINT, deployerProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], DEPOSIT, MINT, aliceProxy);
+    _depositTKNAndGenDebt(vaults[bobProxy], DEPOSIT, MINT, bobProxy);
+    _depositTKNAndGenDebt(vaults[deployerProxy], PROTOCOL_AMOUNT, MINT, deployerProxy);
+    oracleRead = oracle.read();
   }
 
   /**
@@ -210,22 +170,6 @@ contract E2ESaviourTestRiskSetup is E2ESaviourSetup {
     liquidationCRatio = oracleParams.liquidationCRatio;
     safetyCRatio = oracleParams.safetyCRatio;
     oracle = oracleParams.oracle;
-    oracleRead = oracle.read();
-  }
-
-  function _depositCollatAndGenDebt(uint256 _safeId, uint256 _collatAmount, uint256 _deltaWad, address _proxy) internal {
-    vm.startPrank(ODProxy(_proxy).OWNER());
-    bytes memory payload = abi.encodeWithSelector(
-      basicActions.lockTokenCollateralAndGenerateDebt.selector,
-      address(safeManager),
-      address(collateralJoin[TKN]),
-      address(coinJoin),
-      _safeId,
-      _collatAmount,
-      _deltaWad
-    );
-    ODProxy(_proxy).execute(address(basicActions), payload);
-    vm.stopPrank();
   }
 
   function _toFixedPointPercent(uint256 _wad) internal pure returns (uint256 _fixedPtPercent) {
@@ -261,9 +205,9 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_oracle() public view {
-    IOracleRelayer.OracleRelayerCollateralParams memory oracleParams = oracleRelayer.cParams(TKN);
-    IDelayedOracle oracle = oracleParams.oracle;
-    assertEq(address(tknOracle), address(oracle));
+    IOracleRelayer.OracleRelayerCollateralParams memory _oracleParams = oracleRelayer.cParams(TKN);
+    IDelayedOracle _oracle = _oracleParams.oracle;
+    assertEq(address(tknOracle), address(_oracle));
   }
 
   function test_setUp() public view {
@@ -279,21 +223,21 @@ contract E2ESaviourTestRisk is E2ESaviourTestRiskSetup {
   }
 
   function test_increaseRisk1() public {
-    _depositCollatAndGenDebt(vaults[aliceProxy], 0, 0.001 ether, aliceProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], 0, 0.001 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 0.001 ether', _riskRatioAfter);
     emit log_named_int('Percent Above + 0.001 ether', _percentOverSafetyAfter);
   }
 
   function test_increaseRisk2() public {
-    _depositCollatAndGenDebt(vaults[aliceProxy], 0, 1 ether, aliceProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], 0, 1 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 1 ether', _riskRatioAfter);
     emit log_named_int('Percent Above + 1 ether', _percentOverSafetyAfter);
   }
 
   function test_increaseRisk3() public {
-    _depositCollatAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
     (uint256 _riskRatioAfter, int256 _percentOverSafetyAfter) = _readRisk(aliceNFV.safeHandler);
     emit log_named_uint('Vault   Ratio + 5 ether', _riskRatioAfter);
     emit log_named_int('Percent Above + 5 ether', _percentOverSafetyAfter);
@@ -312,8 +256,8 @@ contract E2ESaviourTestLiquidateSetup is E2ESaviourTestRiskSetup {
   function setUp() public virtual override {
     super.setUp();
     // increase user's vault risk
-    _depositCollatAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
-    _depositCollatAndGenDebt(vaults[bobProxy], 0, 5 ether, bobProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
+    _depositTKNAndGenDebt(vaults[bobProxy], 0, 5 ether, bobProxy);
     // devalue collateral TKN
     tknOracle.setPriceAndValidity(tknOracle.read() - 0.2 ether, true);
     // trigger update of collateral devaluation in safeEngine.cData.liquidationPrice
@@ -434,8 +378,8 @@ contract E2ESaviourTestFuzz is E2ESaviourTestRiskSetup {
     token = ERC20ForTest(saviour.cType(TKN));
 
     // increase user's vault risk
-    _depositCollatAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
-    _depositCollatAndGenDebt(vaults[bobProxy], 0, 5 ether, bobProxy);
+    _depositTKNAndGenDebt(vaults[aliceProxy], 0, 5 ether, aliceProxy);
+    _depositTKNAndGenDebt(vaults[bobProxy], 0, 5 ether, bobProxy);
 
     // Protocol DAO to connect saviour
     vm.prank(liquidationEngine.authorizedAccounts()[0]);

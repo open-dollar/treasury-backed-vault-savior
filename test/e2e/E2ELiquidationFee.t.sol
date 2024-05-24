@@ -12,14 +12,13 @@ import {ISAFEEngine} from '@opendollar/interfaces/ISAFEEngine.sol';
 import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
 import {ICollateralAuctionHouse} from '@opendollar/interfaces/ICollateralAuctionHouse.sol';
 import {IAuthorizable} from '@opendollar/interfaces/utils/IAuthorizable.sol';
-import {Data} from 'test/e2e/utils/Data.t.sol';
+import {SharedSetup, RAD, RAY, WAD} from 'test/e2e/utils/SharedSetup.t.sol';
 
-uint256 constant RAD = 1e45;
-uint256 constant RAY = 1e27;
-uint256 constant WAD = 1e18;
 uint256 constant MINUS_0_5_PERCENT_PER_HOUR = 999_998_607_628_240_588_157_433_861;
+uint256 constant DEPOSIT = 185 ether + 1; // 185% collateralized
+uint256 constant MINT = 100 ether;
 
-contract E2ELiquidationFeeSetup is Common, Data {
+contract E2ELiquidationFeeSetup is SharedSetup {
   /**
    * @notice testing for Super Over-Collateralized (SOC) Token
    * 0x534f430000000000000000000000000000000000000000000000000000000000
@@ -47,8 +46,8 @@ contract E2ELiquidationFeeSetup is Common, Data {
 
     _oracleRelayerCParams[SOC] = IOracleRelayer.OracleRelayerCollateralParams({
       oracle: delayedOracle[SOC],
-      safetyCRatio: 1.35e27,
-      liquidationCRatio: 1.25e27
+      safetyCRatio: 1.85e27,
+      liquidationCRatio: 1.75e27
     });
 
     _taxCollectorCParams[SOC] = ITaxCollector.TaxCollectorCollateralParams({stabilityFee: RAY + 1.54713e18});
@@ -64,10 +63,25 @@ contract E2ELiquidationFeeSetup is Common, Data {
     vm.startPrank(tlcGov);
     _setupCollateral(SOC);
     vm.stopPrank();
+
+    _refreshCData(SOC);
+    aliceProxy = _userVaultSetup(SOC, alice, USER_AMOUNT, 'AliceProxy');
+    aliceNFV = vault721.getNfvState(vaults[aliceProxy]);
+    _depositCollateralAndGenDebt(SOC, vaults[aliceProxy], DEPOSIT, MINT, aliceProxy);
+  }
+
+  function _collateralDevaluation(uint256 _devaluation) internal {
+    uint256 _p = delayedOracle[SOC].read();
+    DelayedOracleForTest(address(delayedOracle[SOC])).setPriceAndValidity(_p - _devaluation, true);
+    oracleRelayer.updateCollateralPrice(SOC);
   }
 }
 
 contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
+  using Math for uint256;
+
+  uint256 public deval = 0.2 ether;
+
   function test_cTypes() public {
     bytes32[] memory cTypes = collateralJoinFactory.collateralTypesList(); // bytes32 collateralTypes in the protocol
     bytes32[] memory cList = collateralAuctionHouseFactory.collateralList(); // bytes32 collateralTypes for collateral auction
@@ -77,5 +91,24 @@ contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
       assertTrue(cTypes[_i] == cList[_i]);
     }
     assertEq(cTypes[_l - 1], SOC);
+  }
+
+  function test_cTypePriceDevaluation() public {
+    uint256 _deval = 0.2 ether;
+    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE);
+    _collateralDevaluation(deval);
+    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE - _deval);
+  }
+
+  function test_vaultStartRatio() public {
+    (uint256 _collateral, uint256 _debt) = _getSAFE(SOC, aliceNFV.safeHandler);
+    uint256 _ratioBeforeDevaluation =
+      _collateral.wmul(oracleRelayer.cParams(SOC).oracle.read()).wdiv(_debt.wmul(accumulatedRate));
+    emit log_named_uint('_ratioBeforeDevaluation -------', _ratioBeforeDevaluation);
+    _collateralDevaluation(deval);
+    uint256 _ratioAfterDevaluation =
+      _collateral.wmul(oracleRelayer.cParams(SOC).oracle.read()).wdiv(_debt.wmul(accumulatedRate));
+    emit log_named_uint('_ratioAfterDevaluation --------', _ratioAfterDevaluation);
+    assertTrue(_ratioBeforeDevaluation > _ratioAfterDevaluation);
   }
 }
