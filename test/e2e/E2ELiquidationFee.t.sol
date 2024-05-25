@@ -30,7 +30,7 @@ contract E2ELiquidationFeeSetup is SharedSetup {
   function setUp() public virtual override {
     super.setUp();
     collateral[SOC] = new ERC20ForTest();
-    delayedOracle[SOC] = new DelayedOracleForTest(, address(0xabcdef));
+    delayedOracle[SOC] = new DelayedOracleForTest(TEST_TKN_PRICE, address(0xabcdef));
     collateralTypes.push(SOC);
 
     _collateralAuctionHouseParams[SOC] = ICollateralAuctionHouse.CollateralAuctionHouseParams({
@@ -100,9 +100,9 @@ contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
 
   function test_cTypePriceDevaluation() public {
     uint256 _deval = 0.2 ether;
-    assertEq(delayedOracle[SOC].read(), );
+    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE);
     _collateralDevaluation(DEFAULT_DEVALUATION);
-    assertEq(delayedOracle[SOC].read(),  - _deval);
+    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE - _deval);
   }
 
   function test_vaultRatioDevaluation() public {
