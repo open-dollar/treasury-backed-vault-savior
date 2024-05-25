@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
-import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
-import {Common, TKN, TEST_TKN_PRICE} from '@opendollar/test/e2e/Common.t.sol';
+import {TEST_TKN_PRICE} from '@opendollar/test/e2e/Common.t.sol';
 import {DelayedOracleForTest} from '@opendollar/test/mocks/DelayedOracleForTest.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
@@ -31,7 +30,7 @@ contract E2ELiquidationFeeSetup is SharedSetup {
   function setUp() public virtual override {
     super.setUp();
     collateral[SOC] = new ERC20ForTest();
-    delayedOracle[SOC] = new DelayedOracleForTest(TEST_TKN_PRICE, address(0xabcdef));
+    delayedOracle[SOC] = new DelayedOracleForTest(, address(0xabcdef));
     collateralTypes.push(SOC);
 
     _collateralAuctionHouseParams[SOC] = ICollateralAuctionHouse.CollateralAuctionHouseParams({
@@ -101,9 +100,9 @@ contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
 
   function test_cTypePriceDevaluation() public {
     uint256 _deval = 0.2 ether;
-    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE);
+    assertEq(delayedOracle[SOC].read(), );
     _collateralDevaluation(DEFAULT_DEVALUATION);
-    assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE - _deval);
+    assertEq(delayedOracle[SOC].read(),  - _deval);
   }
 
   function test_vaultRatioDevaluation() public {
