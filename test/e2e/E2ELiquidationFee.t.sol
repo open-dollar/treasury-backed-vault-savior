@@ -48,8 +48,8 @@ contract E2ELiquidationFeeSetup is SharedSetup {
 
     _oracleRelayerCParams[SOC] = IOracleRelayer.OracleRelayerCollateralParams({
       oracle: delayedOracle[SOC],
-      safetyCRatio: 1.85e27,
-      liquidationCRatio: 1.75e27
+      safetyCRatio: 1.85e27, // 185%
+      liquidationCRatio: 1.75e27 // 175%
     });
 
     _taxCollectorCParams[SOC] = ITaxCollector.TaxCollectorCollateralParams({stabilityFee: RAY + 1.54713e18});
@@ -181,7 +181,7 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     // coinBalance of accountingEngine: +100 ether
     _logWadAccountingEngineCoinAndDebtBalance();
 
-    // CAH still holds all 60 ether of collateral after auction, because more collateral needs to be sold
+    // CAH still holds 60 ether of collateral after auction, because more collateral needs to be sold
     _logWadCollateralAuctionHouseTokenCollateral(SOC);
     assertEq(safeEngine.tokenCollateral(SOC, address(collateralAuctionHouse[SOC])), DEPOSIT - _externalCollateralGain);
 
