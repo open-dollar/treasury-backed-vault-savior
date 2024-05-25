@@ -142,6 +142,10 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     systemCoin.approve(bobProxy, USER_AMOUNT);
   }
 
+  /**
+   * @notice with the SAME amount of debt that the liquidated vault held,
+   * bob is able to buy 125 / 185 ether worth of collateral on auction
+   */
   function test_buyCollateral1() public {
     // bob's non-deposited collateral balance before collateral auction
     uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
@@ -160,6 +164,10 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
   }
 
+  /**
+   * @notice with DOUBLE the amount of debt that the liquidated vault held,
+   * bob is able to buy 137.5 / 185 ether worth of collateral on auction
+   */
   function test_buyCollateral2() public {
     uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
 
@@ -171,6 +179,10 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
   }
 
+  /**
+   * @notice with DOUBLE the amount of debt that the liquidated vault held,
+   * bob is able to buy 137.5 / 185 ether worth of collateral on auction
+   */
   function test_buyCollateral3() public {
     uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
 
