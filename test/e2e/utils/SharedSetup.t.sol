@@ -2,6 +2,7 @@
 pragma solidity 0.8.20;
 
 import {Common, TKN} from '@opendollar/test/e2e/Common.t.sol';
+import {Math} from '@opendollar/libraries/Math.sol';
 import {ODProxy} from '@opendollar/contracts/proxies/ODProxy.sol';
 import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
@@ -14,6 +15,8 @@ uint256 constant RAY = 1e27;
 uint256 constant WAD = 1e18;
 
 contract SharedSetup is Common {
+  using Math for uint256;
+
   uint256 public constant TREASURY_AMOUNT = 1_000_000_000_000_000_000_000_000_000 ether;
   uint256 public constant PROTOCOL_AMOUNT = 1_000_000_000 ether;
   uint256 public constant USER_AMOUNT = 1000 ether;
@@ -90,7 +93,7 @@ contract SharedSetup is Common {
     address _proxy
   ) internal {
     vm.startPrank(ODProxy(_proxy).OWNER());
-    bytes memory payload = abi.encodeWithSelector(
+    bytes memory _payload = abi.encodeWithSelector(
       basicActions.lockTokenCollateralAndGenerateDebt.selector,
       address(safeManager),
       address(collateralJoin[_cType]),
@@ -99,14 +102,8 @@ contract SharedSetup is Common {
       _collatAmount,
       _deltaWad
     );
-    ODProxy(_proxy).execute(address(basicActions), payload);
+    ODProxy(_proxy).execute(address(basicActions), _payload);
     vm.stopPrank();
-  }
-
-  function _getSAFE(bytes32 _cType, address _safe) public view returns (uint256 _collateral, uint256 _debt) {
-    ISAFEEngine.SAFE memory _safeData = safeEngine.safes(_cType, _safe);
-    _collateral = _safeData.lockedCollateral;
-    _debt = _safeData.generatedDebt;
   }
 
   function _refreshCData(bytes32 _cType) internal {
@@ -117,5 +114,41 @@ contract SharedSetup is Common {
     oracleParams = oracleRelayer.cParams(_cType);
     liquidationCRatio = oracleParams.liquidationCRatio;
     safetyCRatio = oracleParams.safetyCRatio;
+  }
+
+  function _getSAFE(bytes32 _cType, address _safe) internal view returns (uint256 _collateral, uint256 _debt) {
+    ISAFEEngine.SAFE memory _safeData = safeEngine.safes(_cType, _safe);
+    _collateral = _safeData.lockedCollateral;
+    _debt = _safeData.generatedDebt;
+  }
+
+  function _getRatio(bytes32 _cType, uint256 _collateral, uint256 _debt) internal view returns (uint256 _ratio) {
+    _ratio = _collateral.wmul(oracleRelayer.cParams(_cType).oracle.read()).wdiv(_debt.wmul(accumulatedRate));
+  }
+
+  function _getSafeRatio(bytes32 _cType, address _safe) internal view returns (uint256 _ratio) {
+    (uint256 _collateral, uint256 _debt) = _getSAFE(_cType, _safe);
+    _ratio = _getRatio(_cType, _collateral, _debt);
+  }
+
+  function _buyCollateral(
+    bytes32 _cType,
+    uint256 _auctionId,
+    uint256 _minCollateral,
+    uint256 _bid,
+    address _proxy
+  ) internal {
+    vm.startPrank(ODProxy(_proxy).OWNER());
+    bytes memory _payload = abi.encodeWithSelector(
+      collateralBidActions.buyCollateral.selector,
+      address(coinJoin),
+      address(collateralJoin[_cType]),
+      address(collateralAuctionHouse[_cType]),
+      _auctionId,
+      _minCollateral,
+      _bid
+    );
+    ODProxy(_proxy).execute(address(collateralBidActions), _payload);
+    vm.stopPrank();
   }
 }

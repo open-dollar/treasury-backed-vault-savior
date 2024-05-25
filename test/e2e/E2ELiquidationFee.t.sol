@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity 0.8.20;
 
+import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {Math} from '@opendollar/libraries/Math.sol';
 import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
 import {Common, TKN, TEST_TKN_PRICE} from '@opendollar/test/e2e/Common.t.sol';
@@ -17,6 +18,7 @@ import {SharedSetup, RAD, RAY, WAD} from 'test/e2e/utils/SharedSetup.t.sol';
 uint256 constant MINUS_0_5_PERCENT_PER_HOUR = 999_998_607_628_240_588_157_433_861;
 uint256 constant DEPOSIT = 185 ether + 1; // 185% collateralized
 uint256 constant MINT = 100 ether;
+uint256 constant DEFAULT_DEVALUATION = 0.2 ether;
 
 contract E2ELiquidationFeeSetup is SharedSetup {
   /**
@@ -24,6 +26,7 @@ contract E2ELiquidationFeeSetup is SharedSetup {
    * 0x534f430000000000000000000000000000000000000000000000000000000000
    */
   bytes32 public constant SOC = bytes32('SOC');
+  uint256 public initialSystemCoinSupply;
 
   function setUp() public virtual override {
     super.setUp();
@@ -65,9 +68,16 @@ contract E2ELiquidationFeeSetup is SharedSetup {
     vm.stopPrank();
 
     _refreshCData(SOC);
+
     aliceProxy = _userVaultSetup(SOC, alice, USER_AMOUNT, 'AliceProxy');
     aliceNFV = vault721.getNfvState(vaults[aliceProxy]);
     _depositCollateralAndGenDebt(SOC, vaults[aliceProxy], DEPOSIT, MINT, aliceProxy);
+
+    bobProxy = _userVaultSetup(SOC, bob, USER_AMOUNT, 'BobProxy');
+    bobNFV = vault721.getNfvState(vaults[bobProxy]);
+    _depositCollateralAndGenDebt(SOC, vaults[bobProxy], DEPOSIT * 3, MINT * 3, bobProxy);
+
+    initialSystemCoinSupply = systemCoin.totalSupply();
   }
 
   function _collateralDevaluation(uint256 _devaluation) internal {
@@ -78,10 +88,6 @@ contract E2ELiquidationFeeSetup is SharedSetup {
 }
 
 contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
-  using Math for uint256;
-
-  uint256 public deval = 0.2 ether;
-
   function test_cTypes() public {
     bytes32[] memory cTypes = collateralJoinFactory.collateralTypesList(); // bytes32 collateralTypes in the protocol
     bytes32[] memory cList = collateralAuctionHouseFactory.collateralList(); // bytes32 collateralTypes for collateral auction
@@ -96,19 +102,83 @@ contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
   function test_cTypePriceDevaluation() public {
     uint256 _deval = 0.2 ether;
     assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE);
-    _collateralDevaluation(deval);
+    _collateralDevaluation(DEFAULT_DEVALUATION);
     assertEq(delayedOracle[SOC].read(), TEST_TKN_PRICE - _deval);
   }
 
   function test_vaultRatioDevaluation() public {
-    (uint256 _collateral, uint256 _debt) = _getSAFE(SOC, aliceNFV.safeHandler);
-    uint256 _ratioBeforeDevaluation =
-      _collateral.wmul(oracleRelayer.cParams(SOC).oracle.read()).wdiv(_debt.wmul(accumulatedRate));
+    uint256 _ratioBeforeDevaluation = _getSafeRatio(SOC, aliceNFV.safeHandler);
     emit log_named_uint('_ratioBeforeDevaluation -------', _ratioBeforeDevaluation);
-    _collateralDevaluation(deval);
-    uint256 _ratioAfterDevaluation =
-      _collateral.wmul(oracleRelayer.cParams(SOC).oracle.read()).wdiv(_debt.wmul(accumulatedRate));
+
+    _collateralDevaluation(DEFAULT_DEVALUATION);
+
+    uint256 _ratioAfterDevaluation = _getSafeRatio(SOC, aliceNFV.safeHandler);
     emit log_named_uint('_ratioAfterDevaluation --------', _ratioAfterDevaluation);
+
     assertTrue(_ratioBeforeDevaluation > _ratioAfterDevaluation);
+  }
+
+  function test_liquidation() public {
+    _collateralDevaluation(DEFAULT_DEVALUATION);
+    (uint256 _collateralBefore, uint256 _debtBefore) = _getSAFE(SOC, aliceNFV.safeHandler);
+    assertGt(_collateralBefore, 0);
+    assertGt(_debtBefore, 0);
+    liquidationEngine.liquidateSAFE(SOC, aliceNFV.safeHandler);
+    (uint256 _collateralAfter, uint256 _debtAfter) = _getSAFE(SOC, aliceNFV.safeHandler);
+    assertEq(_collateralAfter, 0);
+    assertEq(_debtAfter, 0);
+  }
+}
+
+contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
+  using Math for uint256;
+
+  function setUp() public virtual override {
+    super.setUp();
+    _collateralDevaluation(DEFAULT_DEVALUATION);
+    auctionId = liquidationEngine.liquidateSAFE(SOC, aliceNFV.safeHandler);
+
+    vm.prank(bob);
+    systemCoin.approve(bobProxy, USER_AMOUNT);
+  }
+
+  function test_buyCollateral1() public {
+    // bob's non-deposited collateral balance before collateral auction
+    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+
+    // alice + bob systemCoin supply
+    assertEq(initialSystemCoinSupply, systemCoin.totalSupply());
+
+    // bob to buy alice's liquidated collateral
+    _buyCollateral(SOC, auctionId, 0, MINT, bobProxy);
+
+    // alice systemCoin supply burned in collateral auction
+    assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT);
+
+    // bob's non-deposited collateral balance after collateral auction
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
+  }
+
+  function test_buyCollateral2() public {
+    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+
+    // bob double's bid from first test
+    _buyCollateral(SOC, auctionId, 0, MINT * 2, bobProxy);
+    assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT * 2);
+
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
+  }
+
+  function test_buyCollateral3() public {
+    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+
+    // bob triple's bid from first test
+    _buyCollateral(SOC, auctionId, 0, MINT * 3, bobProxy);
+    assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT * 3);
+
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
   }
 }
