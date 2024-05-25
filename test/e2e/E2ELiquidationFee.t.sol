@@ -5,13 +5,11 @@ import {Math} from '@opendollar/libraries/Math.sol';
 import {ERC20ForTest} from '@opendollar/test/mocks/ERC20ForTest.sol';
 import {TEST_TKN_PRICE} from '@opendollar/test/e2e/Common.t.sol';
 import {DelayedOracleForTest} from '@opendollar/test/mocks/DelayedOracleForTest.sol';
-import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {ITaxCollector} from '@opendollar/interfaces/ITaxCollector.sol';
 import {ISAFEEngine} from '@opendollar/interfaces/ISAFEEngine.sol';
 import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
 import {ICollateralAuctionHouse} from '@opendollar/interfaces/ICollateralAuctionHouse.sol';
-import {IAuthorizable} from '@opendollar/interfaces/utils/IAuthorizable.sol';
 import {SharedSetup, RAD, RAY, WAD} from 'test/e2e/utils/SharedSetup.t.sol';
 
 uint256 constant MINUS_0_5_PERCENT_PER_HOUR = 999_998_607_628_240_588_157_433_861;
@@ -88,14 +86,14 @@ contract E2ELiquidationFeeSetup is SharedSetup {
 
 contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
   function test_cTypes() public {
-    bytes32[] memory cTypes = collateralJoinFactory.collateralTypesList(); // bytes32 collateralTypes in the protocol
-    bytes32[] memory cList = collateralAuctionHouseFactory.collateralList(); // bytes32 collateralTypes for collateral auction
-    uint256 _l = cTypes.length;
-    assertEq(_l, cList.length);
+    bytes32[] memory _cTypes = collateralJoinFactory.collateralTypesList(); // bytes32 collateralTypes in the protocol
+    bytes32[] memory _cList = collateralAuctionHouseFactory.collateralList(); // bytes32 collateralTypes for collateral auction
+    uint256 _l = _cTypes.length;
+    assertEq(_l, _cList.length);
     for (uint256 _i = 0; _i < _l; _i++) {
-      assertTrue(cTypes[_i] == cList[_i]);
+      assertTrue(_cTypes[_i] == _cList[_i]);
     }
-    assertEq(cTypes[_l - 1], SOC);
+    assertEq(_cTypes[_l - 1], SOC);
   }
 
   function test_cTypePriceDevaluation() public {
