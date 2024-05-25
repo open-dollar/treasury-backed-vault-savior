@@ -106,6 +106,27 @@ contract SharedSetup is Common {
     vm.stopPrank();
   }
 
+  function _buyCollateral(
+    bytes32 _cType,
+    uint256 _auctionId,
+    uint256 _minCollateral,
+    uint256 _bid,
+    address _proxy
+  ) internal {
+    vm.startPrank(ODProxy(_proxy).OWNER());
+    bytes memory _payload = abi.encodeWithSelector(
+      collateralBidActions.buyCollateral.selector,
+      address(coinJoin),
+      address(collateralJoin[_cType]),
+      address(collateralAuctionHouse[_cType]),
+      _auctionId,
+      _minCollateral,
+      _bid
+    );
+    ODProxy(_proxy).execute(address(collateralBidActions), _payload);
+    vm.stopPrank();
+  }
+
   function _refreshCData(bytes32 _cType) internal {
     cTypeData = safeEngine.cData(_cType);
     liquidationPrice = cTypeData.liquidationPrice;
@@ -131,24 +152,14 @@ contract SharedSetup is Common {
     _ratio = _getRatio(_cType, _collateral, _debt);
   }
 
-  function _buyCollateral(
-    bytes32 _cType,
-    uint256 _auctionId,
-    uint256 _minCollateral,
-    uint256 _bid,
-    address _proxy
-  ) internal {
-    vm.startPrank(ODProxy(_proxy).OWNER());
-    bytes memory _payload = abi.encodeWithSelector(
-      collateralBidActions.buyCollateral.selector,
-      address(coinJoin),
-      address(collateralJoin[_cType]),
-      address(collateralAuctionHouse[_cType]),
-      _auctionId,
-      _minCollateral,
-      _bid
+  function _logWadAccountingEngineCoinAndDebtBalance() internal {
+    emit log_named_uint('_accountingEngineCoinBalance --', safeEngine.coinBalance(address(accountingEngine)) / RAY);
+    emit log_named_uint('_accountingEngineDebtBalance --', safeEngine.debtBalance(address(accountingEngine)) / RAY);
+  }
+
+  function _logWadCollateralAuctionHouseTokenCollateral(bytes32 _cType) internal {
+    emit log_named_uint(
+      '_CAH_tokenCollateral ----------', safeEngine.tokenCollateral(_cType, address(collateralAuctionHouse[_cType]))
     );
-    ODProxy(_proxy).execute(address(collateralBidActions), _payload);
-    vm.stopPrank();
   }
 }

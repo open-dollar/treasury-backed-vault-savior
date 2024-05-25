@@ -143,12 +143,28 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
   }
 
   /**
+   * @notice AccountingEngine coinBalance && debtBalance in SAFEEngine
+   * debtBalance: 100 ether (unbacked debt), coinBalance: 0 (backed debt)
+   * -- result of alice vault liquidation
+   */
+  function test_readInitialCoinAndDebtBalance() public {
+    _logWadAccountingEngineCoinAndDebtBalance();
+  }
+
+  /**
    * @notice with the SAME amount of debt that the liquidated vault held,
    * bob is able to buy 125 / 185 ether worth of collateral on auction
    */
   function test_buyCollateral1() public {
+    // CAH holds all 185 ether of collateral after liquidation and before auction
+    _logWadCollateralAuctionHouseTokenCollateral(SOC);
+    assertEq(safeEngine.tokenCollateral(SOC, address(collateralAuctionHouse[SOC])), DEPOSIT);
+
+    // alice has no collateral after liquidation
+    assertEq(safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler), 0);
+
     // bob's non-deposited collateral balance before collateral auction
-    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+    uint256 _externalCollateralBalanceBob = collateral[SOC].balanceOf(bob);
 
     // alice + bob systemCoin supply
     assertEq(initialSystemCoinSupply, systemCoin.totalSupply());
@@ -160,8 +176,18 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT);
 
     // bob's non-deposited collateral balance after collateral auction
-    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBalanceBob;
     emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
+
+    // coinBalance of accountingEngine: +100 ether
+    _logWadAccountingEngineCoinAndDebtBalance();
+
+    // CAH still holds all 60 ether of collateral after auction, because more collateral needs to be sold
+    _logWadCollateralAuctionHouseTokenCollateral(SOC);
+    assertEq(safeEngine.tokenCollateral(SOC, address(collateralAuctionHouse[SOC])), DEPOSIT - _externalCollateralGain);
+
+    // alice's tokenCollateral balance after the auction the initial deposit minus the auctioned collateral
+    assertEq(safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler), 0);
   }
 
   /**
@@ -169,28 +195,53 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
    * bob is able to buy 137.5 / 185 ether worth of collateral on auction
    */
   function test_buyCollateral2() public {
-    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+    assertEq(safeEngine.tokenCollateral(SOC, address(collateralAuctionHouse[SOC])), DEPOSIT);
+    assertEq(safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler), 0);
+
+    uint256 _externalCollateralBalanceBob = collateral[SOC].balanceOf(bob);
+    uint256 _externalCollateralBalanceAlice = collateral[SOC].balanceOf(alice);
 
     // bob double's bid from first test
     _buyCollateral(SOC, auctionId, 0, MINT * 2, bobProxy);
     assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT * 2);
 
-    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBalanceBob;
     emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
+
+    // coinBalance of accountingEngine: +110 ether
+    _logWadAccountingEngineCoinAndDebtBalance();
+    emit log_named_uint('_aliceTokenCollateral --------', safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler));
+
+    // CAH holds 0 collateral because sufficient collateral has been sold
+    assertEq(safeEngine.tokenCollateral(SOC, address(collateralAuctionHouse[SOC])), 0);
+
+    // alice's tokenCollateral balance after the auction is 47.5 ether
+    assertEq(safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler), DEPOSIT - _externalCollateralGain);
+
+    // alice's Safe reflects 0 for lockedCollateral and generatedDebt
+    (uint256 _lockedCollateral, uint256 _generatedDebt) = _getSAFE(SOC, aliceNFV.safeHandler);
+    emit log_named_uint('_lockedCollateral -------------', _lockedCollateral);
+    emit log_named_uint('_generatedDebt ----------------', _generatedDebt);
   }
 
   /**
-   * @notice with DOUBLE the amount of debt that the liquidated vault held,
-   * bob is able to buy 137.5 / 185 ether worth of collateral on auction
+   * @notice with TRIPLE the amount of debt that the liquidated vault held,
+   * bob is STILL ONLY able to buy 137.5 / 185 ether worth of collateral on auction
+   * -- the other 47.5 ether of collateral is returned to alice's SAFEEngine.tokenCollateral
    */
   function test_buyCollateral3() public {
-    uint256 _externalCollateralBefore = collateral[SOC].balanceOf(bob);
+    uint256 _externalCollateralBalanceBob = collateral[SOC].balanceOf(bob);
 
     // bob triple's bid from first test
     _buyCollateral(SOC, auctionId, 0, MINT * 3, bobProxy);
     assertEq(systemCoin.totalSupply(), initialSystemCoinSupply - MINT * 3);
 
-    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBefore;
+    uint256 _externalCollateralGain = collateral[SOC].balanceOf(bob) - _externalCollateralBalanceBob;
     emit log_named_uint('_externalCollateralGain -------', _externalCollateralGain);
+
+    // coinBalance of accountingEngine: +110 ether
+    _logWadAccountingEngineCoinAndDebtBalance();
+
+    _logWadCollateralAuctionHouseTokenCollateral(SOC);
   }
 }
