@@ -34,5 +34,23 @@ interface IODSaviour is ISAFESaviour {
     address collateralJoinFactory;
   }
 
-  function isEnabled(uint256 _vaultId) external view returns (bool _enabled);
+  struct VaultData {
+    uint256 id;
+    bool isAllowed;
+    bool isChosenSaviour;
+    bool isEnabled;
+    address vaultCtypeTokenAddress;
+    uint256 saviourAllowance;
+    uint256 treasuryBalance;
+  }
+
+  function isVaultEnabled(uint256 _vaultId) external view returns (bool _enabled);
+  function vaultData(uint256 vaultId) external view returns (VaultData memory vData);
+  function saviourIsReady(bytes32 _cType) external view returns (bool);
+  function cType(bytes32 _cType) external view returns (address _tokenAddress);
+  function saveSAFE(
+    address _liquidator,
+    bytes32 _cType,
+    address _safe
+  ) external returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward);
 }

@@ -3,6 +3,7 @@ pragma solidity 0.8.20;
 
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
+import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
 import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 import {Assertions} from '@opendollar/libraries/Assertions.sol';
 import {ODSaviour} from '../../src/contracts/ODSaviour.sol';
@@ -58,17 +59,150 @@ contract ODSaviourSetUp is SetUp {
     liquidationEngine.connectSAFESaviour(address(saviour));
 
     vm.stopPrank();
+  }
+}
+
+contract UnitODSaviourVaultData is ODSaviourSetUp {
+  function setUp() public override {
+    super.setUp();
+
+    collateralToken.mint(saviourTreasury, 100 ether);
+  }
+
+  modifier happyPath() {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
     vm.prank(aliceProxy);
     safeManager.allowSAFE(vaultId, address(saviour), true);
+    _;
+  }
+
+  function test_VaultData_TreasuryBalance() public happyPath {
+    IODSaviour.VaultData memory vData = saviour.vaultData(vaultId);
+    assertEq(vData.treasuryBalance, 100 ether);
+  }
+  /**
+   * uint256 vaultId;
+   *   bool allowed;
+   *   bool enabled;
+   *   address vaultCtypeTokenAddress;
+   *   uint256 saviourAllowance;
+   *   bool isChosenSaviour;
+   *   bool treasuryBalance;
+   */
+
+  function test_VaultData_False_NotAllowed() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+
+    IODSaviour.VaultData memory saftey = saviour.vaultData(vaultId);
+
+    assertEq(saftey.treasuryBalance, 100 ether);
+    assertFalse(saftey.isAllowed);
+    assertTrue(saftey.isEnabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertTrue(saftey.isChosenSaviour);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultData_False_NoAllowance() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultData memory saftey = saviour.vaultData(vaultId);
+    assertEq(saftey.treasuryBalance, 100 ether);
+    assertTrue(saftey.isAllowed);
+    assertTrue(saftey.isEnabled);
+    assertTrue(saftey.saviourAllowance == 0);
+    assertTrue(saftey.isChosenSaviour);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultData_False_NotEnabled() public {
+    vm.prank(aliceProxy);
+    safeManager.protectSAFE(vaultId, address(saviour));
+
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultData memory saftey = saviour.vaultData(vaultId);
+    assertEq(saftey.treasuryBalance, 100 ether);
+    assertTrue(saftey.isAllowed);
+    assertFalse(saftey.isEnabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertTrue(saftey.isChosenSaviour);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultData_False_NotProtected() public {
+    vm.prank(saviourTreasury);
+    saviour.modifyParameters('setVaultStatus', abi.encode(vaultId, true));
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
+    IODSaviour.VaultData memory saftey = saviour.vaultData(vaultId);
+    assertEq(saftey.treasuryBalance, 100 ether);
+    assertTrue(saftey.isAllowed);
+    assertTrue(saftey.isEnabled);
+    assertTrue(saftey.saviourAllowance != 0);
+    assertFalse(saftey.isChosenSaviour);
+    assertEq(saftey.vaultCtypeTokenAddress, address(collateralToken));
+  }
+
+  function test_VaultData_False_WrongCType() public {
+    vm.startPrank(aliceProxy);
+    uint256 newVaultId = safeManager.openSAFE('TKN', aliceProxy);
+    safeManager.protectSAFE(newVaultId, address(saviour));
+    safeManager.allowSAFE(newVaultId, address(saviour), true);
+    vm.expectRevert(
+      abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(abi.encodePacked('TKN')))
+    );
+    IODSaviour.VaultData memory saftey = saviour.vaultData(newVaultId);
+  }
+}
+
+contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
+  function test_SaviourIsReady_True() public {
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    assertTrue(saviour.saviourIsReady(ARB));
+  }
+
+  function test_SaviourIsReady_False_NoAllowance() public {
+    assertFalse(saviour.saviourIsReady(ARB));
+  }
+
+  function test_SaviourIsReady_False_NotAChosenSafe() public {
+    vm.prank(saviourTreasury);
+    collateralToken.approve(address(saviour), type(uint256).max);
+    vm.mockCall(
+      address(liquidationEngine),
+      abi.encodeWithSelector(ILiquidationEngine.safeSaviours.selector, address(saviour)),
+      abi.encode(0)
+    );
+    assertFalse(saviour.saviourIsReady(ARB));
   }
 }
 
 contract UnitODSaviourDeployment is ODSaviourSetUp {
-  function test_Set_LiquidationEngine() public view {
+  function test_Set_LiquidationEngine() public {
     assertEq(address(saviour.liquidationEngine()), address(liquidationEngine));
   }
 
-  function test_Set_Vault721() public view {
+  function test_Set_Vault721() public {
     assertEq(address(saviour.vault721()), address(vault721));
   }
 
@@ -78,7 +212,7 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_OracleRelayer() public view {
+  function test_Set_OracleRelayer() public {
     assertEq(address(saviour.oracleRelayer()), address(oracleRelayer));
   }
 
@@ -88,15 +222,15 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_SafeManager() public view {
+  function test_Set_SafeManager() public {
     assertEq(address(saviour.safeManager()), address(safeManager));
   }
 
-  function test_Set_SafeEngine() public view {
+  function test_Set_SafeEngine() public {
     assertEq(address(saviour.safeEngine()), address(safeEngine));
   }
 
-  function test_Set_CollateralJoinFactory() public view {
+  function test_Set_CollateralJoinFactory() public {
     assertEq(address(saviour.collateralJoinFactory()), address(collateralJoinFactory));
   }
 
@@ -106,11 +240,11 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_LiquidatorReward() public view {
+  function test_Set_LiquidatorReward() public {
     assertEq(saviour.liquidatorReward(), 0);
   }
 
-  function test_Set_SaviourTokens() public view {
+  function test_Set_SaviourTokens() public {
     assertEq(saviour.cType(ARB), address(collateralToken));
   }
 }
@@ -121,9 +255,9 @@ contract UnitODSaviourModifyParameters is ODSaviourSetUp {
     uint256 safeId = safeManager.openSAFE(ARB, aliceProxy);
     vm.startPrank(saviourTreasury);
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
-    assertTrue(saviour.isEnabled(safeId));
+    assertTrue(saviour.isVaultEnabled(safeId));
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, false));
-    assertFalse(saviour.isEnabled(safeId));
+    assertFalse(saviour.isVaultEnabled(safeId));
   }
 
   function test_ModifyParameters_SetVaultStatus_Revert() public {
@@ -131,7 +265,7 @@ contract UnitODSaviourModifyParameters is ODSaviourSetUp {
     vm.prank(saviourTreasury);
     vm.expectRevert(abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(0)));
     saviour.modifyParameters('setVaultStatus', abi.encode(safeId, true));
-    assertFalse(saviour.isEnabled(safeId));
+    assertFalse(saviour.isVaultEnabled(safeId));
   }
 
   function test_ModifyParameters_liquidatorReward() public {
@@ -217,6 +351,9 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
       liquidationPenalty: 20_000,
       liquidationQuantity: 1 ether
     });
+
+    vm.prank(aliceProxy);
+    safeManager.allowSAFE(vaultId, address(saviour), true);
   }
 
   event Liquidate(

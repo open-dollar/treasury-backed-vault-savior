@@ -4,6 +4,8 @@ pragma solidity 0.8.20;
 import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 import {ISAFEEngine} from '@opendollar/contracts/SAFEEngine.sol';
 import {IOracleRelayer} from '@opendollar/interfaces/IOracleRelayer.sol';
+import {ILiquidationEngine} from '@opendollar/interfaces/ILiquidationEngine.sol';
+import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
 import {ICollateralJoinFactory} from '@opendollar/interfaces/factories/ICollateralJoinFactory.sol';
 import {ICollateralJoin} from '@opendollar/interfaces/utils/ICollateralJoin.sol';
 import {IVault721} from '@opendollar/interfaces/proxies/IVault721.sol';
@@ -54,12 +56,34 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
     safeEngine = ISAFEEngine(address(safeManager.safeEngine()));
   }
 
-  function isEnabled(uint256 _vaultId) external view returns (bool _enabled) {
+  function isVaultEnabled(uint256 _vaultId) public view returns (bool _enabled) {
     _enabled = _enabledVaults[_vaultId];
   }
 
   function cType(bytes32 _cType) public view returns (address _tokenAddress) {
     return address(_saviourTokenAddresses[_cType]);
+  }
+
+  function saviourIsReady(bytes32 _cType) public view returns (bool) {
+    return (IERC20(_saviourTokenAddresses[_cType]).allowance(saviourTreasury, address(this)) != 0)
+      && (ILiquidationEngine(liquidationEngine).safeSaviours(address(this)) != 0);
+  }
+
+  function vaultData(uint256 vaultId) public view returns (VaultData memory vData) {
+    vData.id = vaultId;
+    IODSafeManager.SAFEData memory safeData = safeManager.safeData(vaultId);
+    vData.isAllowed = safeManager.safeCan(safeData.owner, vaultId, safeData.nonce, address(this));
+
+    vData.isChosenSaviour = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
+      safeData.collateralType, safeData.safeHandler
+    ) == address(this);
+    vData.isEnabled = isVaultEnabled(vaultId);
+    vData.vaultCtypeTokenAddress = cType(safeData.collateralType);
+    if (vData.vaultCtypeTokenAddress == address(0)) revert UninitializedCollateral(safeData.collateralType);
+
+    vData.saviourAllowance = IERC20(vData.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
+
+    vData.treasuryBalance = IERC20(vData.vaultCtypeTokenAddress).balanceOf(saviourTreasury);
   }
 
   function saveSAFE(
