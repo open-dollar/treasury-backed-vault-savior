@@ -153,8 +153,8 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
   function _modifyParameters(bytes32 _cType, bytes32 _param, bytes memory _data) internal virtual override {
     if (_param == 'saviourToken') {
       if (address(_saviourTokenAddresses[_cType]) == address(0)) revert CollateralMustBeInitialized(_cType);
-      address newToken = abi.decode(_data, (address));
-      _saviourTokenAddresses[_cType] = IERC20(newToken);
+      address _newToken = abi.decode(_data, (address));
+      _saviourTokenAddresses[_cType] = IERC20(_newToken);
     } else {
       revert UnrecognizedParam();
     }
@@ -162,10 +162,12 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
 
   function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {
     if (_param == 'setVaultStatus') {
-      (uint256 vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
-      bytes32 collateralType = safeManager.safeData(vaultId).collateralType;
-      if (address(_saviourTokenAddresses[collateralType]) == address(0)) revert UninitializedCollateral(collateralType);
-      _enabledVaults[vaultId] = enabled;
+      (uint256 _vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
+      bytes32 _collateralType = safeManager.safeData(_vaultId).collateralType;
+      if (address(_saviourTokenAddresses[_collateralType]) == address(0)) {
+        revert UninitializedCollateral(_collateralType);
+      }
+      _enabledVaults[_vaultId] = enabled;
     } else if (_param == 'liquidatorReward') {
       uint256 _liquidatorReward = abi.decode(_data, (uint256));
       liquidatorReward = _liquidatorReward;
