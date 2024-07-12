@@ -95,15 +95,15 @@ contract E2ESaviourTestAccessControl is E2ESaviourSetup {
 
   function test_modifyParams() public {
     uint256 _vaultId = 1;
-    assertFalse(saviour.isEnabled(_vaultId));
+    assertFalse(saviour.isVaultEnabled(_vaultId));
     saviour.modifyParameters('setVaultStatus', abi.encode(_vaultId, true));
-    assertTrue(saviour.isEnabled(_vaultId));
+    assertTrue(saviour.isVaultEnabled(_vaultId));
   }
 
   function test_modifyParams(bool _enabled) public {
     uint256 _vaultId = 2;
     saviour.modifyParameters('setVaultStatus', abi.encode(_vaultId, _enabled));
-    assertTrue(saviour.isEnabled(_vaultId) == _enabled);
+    assertTrue(saviour.isVaultEnabled(_vaultId) == _enabled);
   }
 
   function test_modifyParamsRevert(address _attacker, uint256 _vaultId, bool _enabled) public {
@@ -335,11 +335,11 @@ contract E2ESaviourTestLiquidateAndSave is E2ESaviourTestLiquidateSetup {
   }
 
   function test_enabledVault() public view {
-    assertTrue(saviour.isEnabled(vaults[aliceProxy]));
+    assertTrue(saviour.isVaultEnabled(vaults[aliceProxy]));
   }
 
   function test_disabledVault() public view {
-    assertFalse(saviour.isEnabled(vaults[bobProxy]));
+    assertFalse(saviour.isVaultEnabled(vaults[bobProxy]));
   }
 
   function test_protectSafe() public view {

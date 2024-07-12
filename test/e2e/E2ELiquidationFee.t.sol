@@ -85,7 +85,7 @@ contract E2ELiquidationFeeSetup is SharedSetup {
 }
 
 contract E2ELiquidationFeeTestSetup is E2ELiquidationFeeSetup {
-  function test_cTypes() public {
+  function test_cTypes() public view {
     bytes32[] memory _cTypes = collateralJoinFactory.collateralTypesList(); // bytes32 collateralTypes in the protocol
     bytes32[] memory _cList = collateralAuctionHouseFactory.collateralList(); // bytes32 collateralTypes for collateral auction
     uint256 _l = _cTypes.length;
@@ -196,7 +196,6 @@ contract E2ELiquidationFeeTest is E2ELiquidationFeeSetup {
     assertEq(safeEngine.tokenCollateral(SOC, aliceNFV.safeHandler), 0);
 
     uint256 _externalCollateralBalanceBob = collateral[SOC].balanceOf(bob);
-    uint256 _externalCollateralBalanceAlice = collateral[SOC].balanceOf(alice);
 
     // bob double's bid from first test
     _buyCollateral(SOC, auctionId, 0, MINT * 2, bobProxy);

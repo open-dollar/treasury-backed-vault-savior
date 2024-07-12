@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 
 import {ISAFESaviour} from './ISAFESaviour.sol';
-import {IERC20} from '@openzeppelin/token/ERC20/ERC20.sol';
 
 interface IODSaviour is ISAFESaviour {
   event VaultStatusSet(uint256 _vaultId, bool _enabled);
@@ -45,7 +44,7 @@ interface IODSaviour is ISAFESaviour {
   }
 
   function isVaultEnabled(uint256 _vaultId) external view returns (bool _enabled);
-  function vaultData(uint256 vaultId) external view returns (VaultData memory vData);
+  function vaultData(uint256 _vaultId) external view returns (VaultData memory _vData);
   function saviourIsReady(bytes32 _cType) external view returns (bool);
   function cType(bytes32 _cType) external view returns (address _tokenAddress);
   function saveSAFE(

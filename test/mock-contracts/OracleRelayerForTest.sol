@@ -2,7 +2,6 @@
 pragma solidity 0.8.20;
 
 import {IDelayedOracle} from '@opendollar/interfaces/oracles/IDelayedOracle.sol';
-import {IBaseOracle} from '@opendollar/interfaces/oracles/IBaseOracle.sol';
 
 contract OracleRelayerForTest {
   struct OracleRelayerParams {
@@ -23,7 +22,7 @@ contract OracleRelayerForTest {
 
   constructor() {}
 
-  function cParams(bytes32 _cType) external returns (OracleRelayerCollateralParams memory) {
+  function cParams() external view returns (OracleRelayerCollateralParams memory) {
     return OracleRelayerCollateralParams({
       oracle: IDelayedOracle(address(this)),
       safetyCRatio: 1e27,
@@ -31,28 +30,7 @@ contract OracleRelayerForTest {
     });
   }
 
-  function read() external returns (uint256) {
+  function read() external pure returns (uint256) {
     return 1 ether;
   }
 }
-
-// contract OracleRelayerForInternalCallsTest is OracleRelayerForTest {
-//   event UpdateRedemptionPriceCalled();
-//   event GetRedemptionPriceCalled();
-
-//   constructor(
-//     address _safeEngine,
-//     IBaseOracle _systemCoinOracle,
-//     OracleRelayerParams memory _oracleRelayerParams
-//   ) OracleRelayerForTest(_safeEngine, _systemCoinOracle, _oracleRelayerParams) {}
-
-//   function _updateRedemptionPrice() internal override returns (uint256 _redemptionPrice) {
-//     emit UpdateRedemptionPriceCalled();
-//     return super._updateRedemptionPrice();
-//   }
-
-//   function _getRedemptionPrice() internal override returns (uint256 _redemptionPrice) {
-//     emit GetRedemptionPriceCalled();
-//     return super._getRedemptionPrice();
-//   }
-// }

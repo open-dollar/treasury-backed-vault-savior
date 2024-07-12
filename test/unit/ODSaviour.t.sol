@@ -170,7 +170,7 @@ contract UnitODSaviourVaultData is ODSaviourSetUp {
     vm.expectRevert(
       abi.encodeWithSelector(IODSaviour.UninitializedCollateral.selector, bytes32(abi.encodePacked('TKN')))
     );
-    IODSaviour.VaultData memory saftey = saviour.vaultData(newVaultId);
+    saviour.vaultData(newVaultId);
   }
 }
 
@@ -181,7 +181,7 @@ contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
     assertTrue(saviour.saviourIsReady(ARB));
   }
 
-  function test_SaviourIsReady_False_NoAllowance() public {
+  function test_SaviourIsReady_False_NoAllowance() public view {
     assertFalse(saviour.saviourIsReady(ARB));
   }
 
@@ -198,11 +198,11 @@ contract UnitOdSaviourSaviourIsReady is ODSaviourSetUp {
 }
 
 contract UnitODSaviourDeployment is ODSaviourSetUp {
-  function test_Set_LiquidationEngine() public {
+  function test_Set_LiquidationEngine() public view {
     assertEq(address(saviour.liquidationEngine()), address(liquidationEngine));
   }
 
-  function test_Set_Vault721() public {
+  function test_Set_Vault721() public view {
     assertEq(address(saviour.vault721()), address(vault721));
   }
 
@@ -212,7 +212,7 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_OracleRelayer() public {
+  function test_Set_OracleRelayer() public view {
     assertEq(address(saviour.oracleRelayer()), address(oracleRelayer));
   }
 
@@ -222,15 +222,15 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_SafeManager() public {
+  function test_Set_SafeManager() public view {
     assertEq(address(saviour.safeManager()), address(safeManager));
   }
 
-  function test_Set_SafeEngine() public {
+  function test_Set_SafeEngine() public view {
     assertEq(address(saviour.safeEngine()), address(safeEngine));
   }
 
-  function test_Set_CollateralJoinFactory() public {
+  function test_Set_CollateralJoinFactory() public view {
     assertEq(address(saviour.collateralJoinFactory()), address(collateralJoinFactory));
   }
 
@@ -240,11 +240,11 @@ contract UnitODSaviourDeployment is ODSaviourSetUp {
     saviour = new ODSaviour(saviourInit);
   }
 
-  function test_Set_LiquidatorReward() public {
+  function test_Set_LiquidatorReward() public view {
     assertEq(saviour.liquidatorReward(), 0);
   }
 
-  function test_Set_SaviourTokens() public {
+  function test_Set_SaviourTokens() public view {
     assertEq(saviour.cType(ARB), address(collateralToken));
   }
 }
@@ -376,7 +376,6 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     safeManager.modifySAFECollateralization(
       vaultId, int256(liquidation.safeCollateral), int256(liquidation.safeDebt), false
     );
-    uint256 safeStartingCollateralBalance = safeEngine.safes(ARB, safeHandler).lockedCollateral;
     vm.stopPrank();
     vm.prank(saviourTreasury);
     collateralToken.approve(address(saviour), type(uint256).max);
@@ -393,18 +392,6 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
         })
       )
     );
-    //     struct SAFEEngineCollateralData {
-    //   // Total amount of debt issued by the collateral type
-    //   uint256 /* WAD */ debtAmount;
-    //   // Total amount of collateral locked in SAFEs using the collateral type
-    //   uint256 /* WAD */ lockedAmount;
-    //   // Accumulated rate of the collateral type
-    //   uint256 /* RAY */ accumulatedRate;
-    //   // Floor price at which a SAFE is allowed to generate debt
-    //   uint256 /* RAY */ safetyPrice;
-    //   // Price at which a SAFE gets liquidated
-    //   uint256 /* RAY */ liquidationPrice;
-    // }
 
     vm.expectEmit();
     emit Liquidate(
@@ -439,8 +426,6 @@ contract UnitODSaviourSaveSafe is ODSaviourSetUp {
     assertEq(collateralToken.balanceOf(address(saviour)), 0);
 
     uint256 safeStartingDebtBalance = safeEngine.safes(ARB, safeHandler).generatedDebt;
-
-    // _notSafeBool = _safeCollateral * _liquidationPrice < _safeDebt * _accumulatedRate;
 
     vm.prank(saviourTreasury);
     collateralToken.approve(address(saviour), type(uint256).max);
