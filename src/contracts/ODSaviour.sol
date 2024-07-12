@@ -61,33 +61,33 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
   }
 
   function cType(bytes32 _cType) public view returns (address _tokenAddress) {
-    return address(_saviourTokenAddresses[_cType]);
+    _tokenAddress = address(_saviourTokenAddresses[_cType]);
   }
 
-  function saviourIsReady(bytes32 _cType) public view returns (bool) {
-    return (IERC20(_saviourTokenAddresses[_cType]).allowance(saviourTreasury, address(this)) != 0)
+  function saviourIsReady(bytes32 _cType) public view returns (bool _ready) {
+    _ready = (IERC20(_saviourTokenAddresses[_cType]).allowance(saviourTreasury, address(this)) != 0)
       && (ILiquidationEngine(liquidationEngine).safeSaviours(address(this)) != 0);
   }
 
-  function vaultData(uint256 vaultId) public view returns (VaultData memory vData) {
-    vData.id = vaultId;
-    IODSafeManager.SAFEData memory safeData = safeManager.safeData(vaultId);
-    vData.isAllowed = safeManager.safeCan(safeData.owner, vaultId, safeData.nonce, address(this));
+  function vaultData(uint256 _vaultId) public view returns (VaultData memory _vData) {
+    _vData.id = _vaultId;
+    IODSafeManager.SAFEData memory _safeData = safeManager.safeData(_vaultId);
+    _vData.isAllowed = safeManager.safeCan(_safeData.owner, _vaultId, _safeData.nonce, address(this));
 
-    vData.isChosenSaviour = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
-      safeData.collateralType, safeData.safeHandler
+    _vData.isChosenSaviour = ILiquidationEngine(liquidationEngine).chosenSAFESaviour(
+      _safeData.collateralType, _safeData.safeHandler
     ) == address(this);
-    vData.isEnabled = isVaultEnabled(vaultId);
-    vData.vaultCtypeTokenAddress = cType(safeData.collateralType);
-    if (vData.vaultCtypeTokenAddress == address(0)) revert UninitializedCollateral(safeData.collateralType);
+    _vData.isEnabled = isVaultEnabled(_vaultId);
+    _vData.vaultCtypeTokenAddress = cType(_safeData.collateralType);
+    if (_vData.vaultCtypeTokenAddress == address(0)) revert UninitializedCollateral(_safeData.collateralType);
 
-    vData.saviourAllowance = IERC20(vData.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
+    _vData.saviourAllowance = IERC20(_vData.vaultCtypeTokenAddress).allowance(saviourTreasury, address(this));
 
-    vData.treasuryBalance = IERC20(vData.vaultCtypeTokenAddress).balanceOf(saviourTreasury);
+    _vData.treasuryBalance = IERC20(_vData.vaultCtypeTokenAddress).balanceOf(saviourTreasury);
   }
 
   function saveSAFE(
-    address _liquidator,
+    address,
     bytes32 _cType,
     address _safe
   ) external returns (bool _ok, uint256 _collateralAdded, uint256 _liquidatorReward) {
@@ -162,12 +162,12 @@ contract ODSaviour is Authorizable, Modifiable, ModifiablePerCollateral, IODSavi
 
   function _modifyParameters(bytes32 _param, bytes memory _data) internal virtual override {
     if (_param == 'setVaultStatus') {
-      (uint256 _vaultId, bool enabled) = abi.decode(_data, (uint256, bool));
+      (uint256 _vaultId, bool _enabled) = abi.decode(_data, (uint256, bool));
       bytes32 _collateralType = safeManager.safeData(_vaultId).collateralType;
       if (address(_saviourTokenAddresses[_collateralType]) == address(0)) {
         revert UninitializedCollateral(_collateralType);
       }
-      _enabledVaults[_vaultId] = enabled;
+      _enabledVaults[_vaultId] = _enabled;
     } else if (_param == 'liquidatorReward') {
       uint256 _liquidatorReward = abi.decode(_data, (uint256));
       liquidatorReward = _liquidatorReward;
