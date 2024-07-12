@@ -72,10 +72,10 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@opendollar/contracts@0.0.0-e31c2151":
-  version "0.0.0-e31c2151"
-  resolved "https://registry.yarnpkg.com/@opendollar/contracts/-/contracts-0.0.0-e31c2151.tgz#d96fea17c8f865f6b35c74a80d0e95cdfed10943"
-  integrity sha512-mffuIIDH6YV7gxEbUQghPtKvCamcFoFG4YWnWozjtDec/vrusm2TCjrAKvzV9v8+Sha0dkr6ROryfyMxZIH+IQ==
+"@opendollar/contracts@0.0.0-984c17c2":
+  version "0.0.0-984c17c2"
+  resolved "https://registry.yarnpkg.com/@opendollar/contracts/-/contracts-0.0.0-984c17c2.tgz#52a03256654cc7fe69cff430d60bed07d9a8648a"
+  integrity sha512-4AV3GKyi+deaSq1jsSUSP22/hkywYhF0EOE2v7cq7MnK3fuSKOSChKmLO0Hx/1PrRxhoE3/eIxqQuaPEqhpt0A==
   dependencies:
     "@defi-wonderland/solidity-utils" "0.0.0-4298c6c6"
     "@openzeppelin/contracts" "4.9.6"
